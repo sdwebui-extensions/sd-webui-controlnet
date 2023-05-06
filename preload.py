@@ -9,7 +9,7 @@ def preload(parser):
         "--controlnet-annotator-models-path",
         type=str,
         help="Path to directory with annotator model directories",
-        default=None,
+        default="models/annotator",
     )
     parser.add_argument(
         "--no-half-controlnet",
