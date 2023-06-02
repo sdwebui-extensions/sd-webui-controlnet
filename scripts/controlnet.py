@@ -251,7 +251,10 @@ class Script(scripts.Script, metaclass=(
         self.infotext_fields = []
         self.paste_field_names = []
         controls = ()
-        max_models = shared.opts.data.get("control_net_max_models_num", 1)
+        if shared.cmd_opts.just_ui:
+            max_models = shared.opts.data.get("control_net_max_models_num", 1)
+        else:
+            max_models = 5
         elem_id_tabname = ("img2img" if is_img2img else "txt2img") + "_controlnet"
         with gr.Group(elem_id=elem_id_tabname):
             with gr.Accordion(f"ControlNet {controlnet_version.version_flag}", open = False, elem_id="controlnet"):
@@ -1028,15 +1031,15 @@ def on_ui_settings():
     shared.opts.add_option("control_net_modules_path", shared.OptionInfo(
         "", "Path to directory containing annotator model directories (requires restart, overrides corresponding command line flag)", section=section))
     shared.opts.add_option("control_net_max_models_num", shared.OptionInfo(
-        3, "Multi ControlNet: Max models amount (requires restart)", gr.Slider, {"minimum": 1, "maximum": 10, "step": 1}, section=section))
+        5, "Multi ControlNet: Max models amount (requires restart)", gr.Slider, {"minimum": 1, "maximum": 10, "step": 1}, section=section))
     shared.opts.add_option("control_net_model_cache_size", shared.OptionInfo(
-        1, "Model cache size (requires restart)", gr.Slider, {"minimum": 1, "maximum": 5, "step": 1}, section=section))
+        5, "Model cache size (requires restart)", gr.Slider, {"minimum": 1, "maximum": 5, "step": 1}, section=section))
     shared.opts.add_option("control_net_no_detectmap", shared.OptionInfo(
         False, "Do not append detectmap to output", gr.Checkbox, {"interactive": True}, section=section))
     shared.opts.add_option("control_net_detectmap_autosaving", shared.OptionInfo(
         False, "Allow detectmap auto saving", gr.Checkbox, {"interactive": True}, section=section))
     shared.opts.add_option("control_net_allow_script_control", shared.OptionInfo(
-        False, "Allow other script to control this extension", gr.Checkbox, {"interactive": True}, section=section))
+        True, "Allow other script to control this extension", gr.Checkbox, {"interactive": True}, section=section))
     shared.opts.add_option("control_net_sync_field_args", shared.OptionInfo(
         False, "Passing ControlNet parameters with \"Send to img2img\"", gr.Checkbox, {"interactive": True}, section=section))
     shared.opts.add_option("controlnet_show_batch_images_in_ui", shared.OptionInfo(
@@ -1047,6 +1050,7 @@ def on_ui_settings():
         False, "Disable control type selection", gr.Checkbox, {"interactive": True}, section=section))
     shared.opts.add_option("controlnet_disable_openpose_edit", shared.OptionInfo(
         False, "Disable openpose edit", gr.Checkbox, {"interactive": True}, section=section))
+    shared.opts.set('control_net_max_models_num',5)
 
 
 batch_hijack.instance.do_hijack()
