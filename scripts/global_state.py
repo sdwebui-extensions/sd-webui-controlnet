@@ -10,6 +10,8 @@ from scripts.utils import ndarray_lru_cache
 from scripts.logging import logger
 
 from typing import Dict, Callable, Optional
+import glob
+import os
 
 CN_MODEL_EXTS = [".pt", ".pth", ".ckpt", ".safetensors"]
 cn_models_dir = os.path.join(models_path, "ControlNet")
@@ -203,6 +205,9 @@ def update_cn_models():
     extra_lora_paths = (extra_lora_path for extra_lora_path in ext_dirs
                 if extra_lora_path is not None and os.path.exists(extra_lora_path))
     paths = [cn_models_dir, cn_models_dir_old, *extra_lora_paths]
+    if os.path.isdir(shared.cmd_opts.data_dir):
+        paths = paths + glob.glob(os.path.join(shared.cmd_opts.data_dir, '**/ControlNet'), recursive=True)
+        paths = list(set(paths))
 
     for path in paths:
         sort_by = shared.opts.data.get(
