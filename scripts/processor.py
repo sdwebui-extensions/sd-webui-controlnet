@@ -3,6 +3,36 @@ import numpy as np
 
 from annotator.util import HWC3
 from typing import Callable, Tuple
+from modules import shared
+from modules.api import api
+from PIL import Image
+from scripts import external_code
+import requests
+import json
+
+def encode_np_to_base64(image):
+    pil = Image.fromarray(image)
+    return api.encode_pil_to_base64(pil)
+
+def api_request(img, controlnet_module, res=512, thr_a=100, thr_b=200):
+    req_url = '/'.join([shared.cmd_opts.server_path, 'controlnet/detect'])
+    req = {
+        'controlnet_module': controlnet_module,
+        'controlnet_input_images': [encode_np_to_base64(img)],
+        'controlnet_processor_res': res,
+        'controlnet_threshold_a': thr_a, 
+        'controlnet_threshold_b': thr_b
+    }
+    try:
+        data = requests.post(req_url, json=req)
+        if data.status_code == 200:
+            result = external_code.to_base64_nparray(json.loads(data.text)['images'][0])
+            return result, True
+        else:
+            print(data.status_code, data.text)
+    except Exception as e:
+        print(e)
+    return None, False
 
 
 def pad64(x):
@@ -38,6 +68,10 @@ model_canny = None
 
 
 def canny(img, res=512, thr_a=100, thr_b=200, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'canny', res, thr_a, thr_b)
+        if flag:
+            return result, flag
     l, h = thr_a, thr_b
     img, remove_pad = resize_image_with_pad(img, res)
     global model_canny
@@ -95,6 +129,10 @@ model_hed = None
 
 
 def hed(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'hed', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_hed
     if model_hed is None:
@@ -105,6 +143,10 @@ def hed(img, res=512, **kwargs):
 
 
 def hed_safe(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'hed_safe', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_hed
     if model_hed is None:
@@ -136,6 +178,10 @@ model_mediapipe_face = None
 
 
 def mediapipe_face(img, res=512, thr_a: int = 10, thr_b: float = 0.5, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'mediapipe_face', res, thr_a, thr_b)
+        if flag:
+            return result, flag
     max_faces = int(thr_a)
     min_confidence = thr_b
     img, remove_pad = resize_image_with_pad(img, res)
@@ -151,6 +197,10 @@ model_mlsd = None
 
 
 def mlsd(img, res=512, thr_a=0.1, thr_b=0.1, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'mlsd', res, thr_a, thr_b)
+        if flag:
+            return result, flag
     thr_v, thr_d = thr_a, thr_b
     img, remove_pad = resize_image_with_pad(img, res)
     global model_mlsd
@@ -172,6 +222,10 @@ model_midas = None
 
 
 def midas(img, res=512, a=np.pi * 2.0, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'depth', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_midas
     if model_midas is None:
@@ -182,6 +236,10 @@ def midas(img, res=512, a=np.pi * 2.0, **kwargs):
 
 
 def midas_normal(img, res=512, a=np.pi * 2.0, thr_a=0.4, **kwargs):  # bg_th -> thr_a
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'normal_map', res, thr_a)
+        if flag:
+            return result, flag
     bg_th = thr_a
     img, remove_pad = resize_image_with_pad(img, res)
     global model_midas
@@ -203,6 +261,13 @@ model_leres = None
 
 
 def leres(img, res=512, a=np.pi * 2.0, thr_a=0, thr_b=0, boost=False, **kwargs):
+    if shared.cmd_opts.just_ui:
+        if not boost:
+            result, flag = api_request(img, 'depth_leres', res, thr_a, thr_b)
+        else:
+            result, flag = api_request(img, 'depth_leres++', res, thr_a, thr_b)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_leres
     if model_leres is None:
@@ -239,6 +304,20 @@ class OpenposeModel(object):
 
         The JSON format pose string is passed to `json_pose_callback`.
         """
+        if shared.cmd_opts.just_ui:
+            if include_body:
+                if include_hand and include_face:
+                    result, flag = api_request(img, 'openpose_full', res)
+                elif include_face:
+                    result, flag = api_request(img, 'openpose_face', res)
+                elif include_hand:
+                    result, flag = api_request(img, 'openpose_hand', res)
+                else:
+                    result, flag = api_request(img, 'openpose', res)
+            else:
+                result, flag = api_request(img, 'openpose_faceonly', res)
+            if flag:
+                return result, flag
         if json_pose_callback is None:
             json_pose_callback = lambda x: None
 
@@ -267,6 +346,10 @@ model_uniformer = None
 
 
 def uniformer(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'segmentation', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_uniformer
     if model_uniformer is None:
@@ -287,6 +370,10 @@ model_pidinet = None
 
 
 def pidinet(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'pidinet', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_pidinet
     if model_pidinet is None:
@@ -297,6 +384,10 @@ def pidinet(img, res=512, **kwargs):
 
 
 def pidinet_ts(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'pidinet_sketch', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_pidinet
     if model_pidinet is None:
@@ -307,6 +398,10 @@ def pidinet_ts(img, res=512, **kwargs):
 
 
 def pidinet_safe(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'pidinet_safe', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_pidinet
     if model_pidinet is None:
@@ -317,6 +412,10 @@ def pidinet_safe(img, res=512, **kwargs):
 
 
 def scribble_pidinet(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'pidinet_scribble', res)
+        if flag:
+            return result, flag
     result, _ = pidinet(img, res)
     import cv2
     from annotator.util import nms
@@ -388,6 +487,10 @@ model_lineart = None
 
 
 def lineart(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'lineart', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_lineart
     if model_lineart is None:
@@ -409,6 +512,10 @@ model_lineart_coarse = None
 
 
 def lineart_coarse(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'lineart_coarse', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_lineart_coarse
     if model_lineart_coarse is None:
@@ -430,6 +537,10 @@ model_lineart_anime = None
 
 
 def lineart_anime(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'lineart_anime', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_lineart_anime
     if model_lineart_anime is None:
@@ -451,6 +562,10 @@ model_manga_line = None
 
 
 def lineart_anime_denoise(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'lineart_anime_denoise', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_manga_line
     if model_manga_line is None:
@@ -477,6 +592,10 @@ def lama_inpaint(img, res=512, **kwargs):
     raw_mask = img[:, :, 3:4].copy()
 
     res = 256  # Always use 256 since lama is trained on 256
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'lama_inpaint', res)
+        if flag:
+            return result, flag
 
     img_res, remove_pad = resize_image_with_pad(img, res, skip_hwc3=True)
 
@@ -509,6 +628,10 @@ model_zoe_depth = None
 
 
 def zoe_depth(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'depth_zoe', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_zoe_depth
     if model_zoe_depth is None:
@@ -528,6 +651,10 @@ model_normal_bae = None
 
 
 def normal_bae(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'normal_bae', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_normal_bae
     if model_normal_bae is None:
@@ -547,6 +674,10 @@ model_oneformer_coco = None
 
 
 def oneformer_coco(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'oneformer_coco', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_oneformer_coco
     if model_oneformer_coco is None:
@@ -566,6 +697,10 @@ model_oneformer_ade20k = None
 
 
 def oneformer_ade20k(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'oneformer_ade20k', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     global model_oneformer_ade20k
     if model_oneformer_ade20k is None:
@@ -585,6 +720,10 @@ model_shuffle = None
 
 
 def shuffle(img, res=512, **kwargs):
+    if shared.cmd_opts.just_ui:
+        result, flag = api_request(img, 'shuffle', res)
+        if flag:
+            return result, flag
     img, remove_pad = resize_image_with_pad(img, res)
     img = remove_pad(img)
     global model_shuffle
