@@ -205,7 +205,7 @@ def update_cn_models():
     extra_lora_paths = (extra_lora_path for extra_lora_path in ext_dirs
                 if extra_lora_path is not None and os.path.exists(extra_lora_path))
     paths = [cn_models_dir, cn_models_dir_old, *extra_lora_paths]
-    if os.path.isdir(shared.cmd_opts.data_dir) and shared.cmd_opts.nowebui:
+    if os.path.isdir(shared.cmd_opts.data_dir) and not shared.cmd_opts.nowebui:
         paths = paths + glob.glob(os.path.join(shared.cmd_opts.data_dir, '*/models/ControlNet'))
         paths = paths + glob.glob(os.path.join(shared.cmd_opts.data_dir, '*/*/models/ControlNet'))
         paths = list(set(paths))
