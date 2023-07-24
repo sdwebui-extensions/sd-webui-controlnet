@@ -206,11 +206,11 @@ def update_cn_models():
                 if extra_lora_path is not None and os.path.exists(extra_lora_path))
     paths = [cn_models_dir, cn_models_dir_old, *extra_lora_paths]
 
-    if not shared.cmd_opts.nowebui and shared.cmd_opts.uid is None:
+    if not shared.cmd_opts.nowebui and hasattr(shared.cmd_opts,'uid') and shared.cmd_opts.uid is None:
         paths = paths + glob.glob(os.path.join(shared.cmd_opts.data_dir, '*/models/ControlNet'))
         paths = paths + glob.glob(os.path.join(shared.cmd_opts.data_dir, '*/*/models/ControlNet'))
         paths = list(set(paths))
-    if shared.cmd_opts.public_cache:
+    if hasattr(shared.cmd_opts, 'public_cache') and shared.cmd_opts.public_cache and os.path.exists("/stable-diffusion-cache/models/ControlNet"):
         paths = paths + ["/stable-diffusion-cache/models/ControlNet"]
 
     for path in paths:
