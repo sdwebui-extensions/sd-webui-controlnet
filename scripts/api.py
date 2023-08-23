@@ -77,14 +77,25 @@ def controlnet_api(_: gr.Blocks, app: FastAPI):
         results = []
 
         processor_module = cached_cn_preprocessors[controlnet_module]
+        class JsonAcceptor:
+            def __init__(self) -> None:
+                self.value = ""
+
+            def accept(self, json_string: str) -> None:
+                self.value = json_string
+        json_acceptor = JsonAcceptor()
 
         for input_image in controlnet_input_images:
             img = external_code.to_base64_nparray(input_image)
-            results.append(processor_module(img, res=controlnet_processor_res, thr_a=controlnet_threshold_a, thr_b=controlnet_threshold_b)[0])
+            if "openpose" in controlnet_module:
+                result = processor_module(img, res=controlnet_processor_res, thr_a=controlnet_threshold_a, thr_b=controlnet_threshold_b, json_pose_callback=json_acceptor.accept)
+            else:
+                result = processor_module(img, res=controlnet_processor_res, thr_a=controlnet_threshold_a, thr_b=controlnet_threshold_b)
+            results.append(result[0])
 
         global_state.cn_preprocessor_unloadable.get(controlnet_module, lambda: None)()
         results64 = list(map(encode_to_base64, results))
-        return {"images": results64, "info": "Success"}
+        return {"images": results64, "info": "Success", "json_value":json_acceptor.value}
 
 try:
     import modules.script_callbacks as script_callbacks
