@@ -20,13 +20,15 @@ def api_request(img, controlnet_module, res=512, thr_a=100, thr_b=200):
         'controlnet_module': controlnet_module,
         'controlnet_input_images': [encode_np_to_base64(img)],
         'controlnet_processor_res': res,
-        'controlnet_threshold_a': thr_a, 
+        'controlnet_threshold_a': thr_a,
         'controlnet_threshold_b': thr_b
     }
     try:
         data = requests.post(req_url, json=req)
         if data.status_code == 200:
             result = external_code.to_base64_nparray(json.loads(data.text)['images'][0])
+            if 'openpose' in controlnet_module:
+                return result, True, json.loads(data.text)['json_value']
             return result, True
         else:
             print(data.status_code, data.text)
@@ -307,17 +309,20 @@ class OpenposeModel(object):
         if shared.cmd_opts.just_ui:
             if include_body:
                 if include_hand and include_face:
-                    result, flag = api_request(img, 'openpose_full', res)
+                    result = api_request(img, 'openpose_full', res)
                 elif include_face:
-                    result, flag = api_request(img, 'openpose_face', res)
+                    result = api_request(img, 'openpose_face', res)
                 elif include_hand:
-                    result, flag = api_request(img, 'openpose_hand', res)
+                    result = api_request(img, 'openpose_hand', res)
                 else:
-                    result, flag = api_request(img, 'openpose', res)
+                    result = api_request(img, 'openpose', res)
             else:
-                result, flag = api_request(img, 'openpose_faceonly', res)
-            if flag:
-                return result, flag
+                result = api_request(img, 'openpose_faceonly', res)
+            if result[1]:
+                mask, flag, json_value = result
+                if json_pose_callback is not None:
+                    json_pose_callback(json_value)
+                return mask, flag
         if json_pose_callback is None:
             json_pose_callback = lambda x: None
 
