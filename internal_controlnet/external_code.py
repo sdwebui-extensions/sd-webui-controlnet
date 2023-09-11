@@ -22,6 +22,10 @@ class ControlMode(Enum):
     PROMPT = "My prompt is more important"
     CONTROL = "ControlNet is more important"
 
+class InputMode(Enum):
+    SIMPLE = "simple"
+    BATCH = "batch"
+
 
 class ResizeMode(Enum):
     """
@@ -162,6 +166,9 @@ class ControlNetUnit:
             guidance_end: float = 1.0,
             pixel_perfect: bool = False,
             control_mode: Union[ControlMode, int, str] = ControlMode.BALANCED,
+            input_mode = InputMode.SIMPLE,
+            batch_images = '',
+            output_dir = '',
             **_kwargs,
     ):
         self.enabled = enabled
@@ -178,6 +185,9 @@ class ControlNetUnit:
         self.guidance_end = guidance_end
         self.pixel_perfect = pixel_perfect
         self.control_mode = control_mode
+        self.input_mode = input_mode
+        self.batch_images = batch_images
+        self.output_dir = output_dir
 
     def __eq__(self, other):
         if not isinstance(other, ControlNetUnit):
