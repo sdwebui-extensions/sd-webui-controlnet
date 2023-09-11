@@ -193,6 +193,15 @@ def get_cn_batches(p: processing.StableDiffusionProcessing) -> Tuple[bool, List[
             if isinstance(unit.batch_images, str):
                 unit.batch_images = shared.listfiles(unit.batch_images)
                 input_file_names = unit.batch_images
+        elif getattr(unit, 'input_mode', 'simple') == 'batch':
+            unit.input_mode = InputMode.BATCH
+            any_unit_is_batch = True
+            output_dir = getattr(unit, 'output_dir', '')
+            shared.opts.data['controlnet_show_batch_images_in_ui'] = True
+            
+            if isinstance(unit.batch_images, str):
+                unit.batch_images = shared.listfiles(unit.batch_images)
+                input_file_names = unit.batch_images
 
     if any_unit_is_batch:
         cn_batch_size = min(len(getattr(unit, 'batch_images', []))
