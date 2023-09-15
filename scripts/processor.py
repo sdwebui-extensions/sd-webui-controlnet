@@ -619,6 +619,130 @@ def blur_gaussian(img, res=512, thr_a=1.0, **kwargs):
     result = cv2.GaussianBlur(img, (0, 0), float(thr_a))
     return result, True
 
+model_sd_hed = None
+
+
+def resize_image(input_image, resolution, nearest = False, crop264 = True):
+    H, W, C = input_image.shape
+    H = float(H)
+    W = float(W)
+    k = float(resolution) / min(H, W)
+    H *= k
+    W *= k
+    if crop264:
+        H = int(np.round(H / 64.0)) * 64
+        W = int(np.round(W / 64.0)) * 64
+    else:
+        H = int(H)
+        W = int(W)
+    if not nearest:
+        img = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_LANCZOS4 if k > 1 else cv2.INTER_AREA)
+    else:
+        img = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_NEAREST)
+    return img
+
+
+def sd_hed(img, res=512, **kwargs):
+    global model_sd_hed
+    h, w = img.shape[:2]
+    img = resize_image(img, int(res))
+    if model_sd_hed is None:
+        from annotator.hed import apply_hed
+        model_sd_hed = apply_hed
+    result = model_sd_hed(img)
+    result = cv2.resize(result, [w, h])
+    return result, True
+ 
+
+def unload_sd_hed():
+    global model_sd_hed
+
+
+model_sd_color = None
+
+
+def sd_color(img, res=512, thr_a=16, **kwargs):
+    global model_sd_color
+    if model_sd_color is None:
+        from annotator.sd_color import apply_sd_color
+        model_sd_color = apply_sd_color
+    result = model_sd_color(img, res=res, blur_ratio=thr_a)
+    return result, True
+
+
+model_sd_color_face_body_dif= None
+
+
+def sd_color_face_body_dif(img, res=512, thr_a=16, **kwargs):
+    global model_sd_color_face_body_dif
+    if model_sd_color_face_body_dif is None:
+        from annotator.sd_color_face_body_dif import apply_sd_color_face_body_dif
+        model_sd_color_face_body_dif = apply_sd_color_face_body_dif
+    result = model_sd_color_face_body_dif(img, res=res, blur_ratio=thr_a)
+    return result, True
+
+
+model_sd_color_smooth = None
+
+
+def unload_sd_color_face_body_dif():
+    global model_sd_color_face_body_dif
+    if model_sd_color_face_body_dif is not None:
+        from annotator.sd_color_face_body_dif import unload_sd_color_face_body_dif
+        unload_sd_color_face_body_dif()
+
+
+def sd_color_smooth(img, res=512, **kwargs):
+    global model_sd_color_smooth
+    if model_sd_color_smooth is None:
+        from annotator.sd_color_smooth import apply_sd_color_smooth
+        model_sd_color_smooth = apply_sd_color_smooth
+    result = model_sd_color_smooth(img, res=res)
+    return result, True
+
+
+model_sd_t2t = None
+
+
+def sd_t2t(img, res=512, **kwargs):
+    global model_sd_t2t
+    if model_sd_t2t is None:
+        from annotator.sd_t2t import apply_sd_t2t
+        model_sd_t2t = apply_sd_t2t
+    result = model_sd_t2t(img, res=res)
+    return result, True
+
+
+model_sd_heatmap = None
+
+
+def sd_heatmap(img, res=512, **kwargs):
+    global model_sd_heatmap
+    if model_sd_heatmap is None:
+        from annotator.sd_heatmap import apply_sd_heatmap
+        model_sd_heatmap = apply_sd_heatmap
+    result = model_sd_heatmap(img, res=res)
+    return result, True
+
+
+model_sd_openpose_with_face = None
+
+
+def sd_openpose_with_face(img, res=512, **kwargs):
+    global model_sd_openpose_with_face
+    if model_sd_openpose_with_face is None:
+        from annotator.sd_openpose_with_face import apply_sd_openpose_with_face
+        model_sd_openpose_with_face = apply_sd_openpose_with_face
+    result = model_sd_openpose_with_face(img)
+    return result, True
+
+
+def unload_sd_openpose_with_face():
+    global model_sd_openpose_with_face
+    if model_sd_openpose_with_face is not None:
+        from annotator.sd_openpose_with_face import unload_sd_openpose_with_face_model
+        unload_sd_openpose_with_face_model()
+
 
 model_free_preprocessors = [
     "reference_only",
@@ -984,6 +1108,204 @@ preprocessor_sliders_config = {
             "min": 0.1,
             "max": 2.0,
             "step": 0.001
+        }
+    ],
+    "lineart_anime": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "lineart_anime_denoise": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "lineart_coarse": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "lineart": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "lineart_standard": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "normal_bae": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "openpose_face": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "openpose_hand": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "openpose_faceonly": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "pidinet_scribble": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "sd_hed": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "sd_t2t": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "shuffle": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "pidinet": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "pidinet_safe": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "pidinet_sketch": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "oneformer_ade20k": [
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "oneformer_coco":[
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "depth_zoe":[
+        {
+            "name": flag_preprocessor_resolution,
+            "min": 64,
+            "max": 2048,
+            "value": 512
+        }
+    ],
+    "sd_color": [
+        {
+            "name": flag_preprocessor_resolution,
+            "value": 1024,
+            "min": 64,
+            "max": 2048,
+        },
+        {
+            "name": "Blur Ratio",
+            "value": 8,
+            "min": 1,
+            "max": 64,
+            "step": 1
+        }
+    ],
+    "sd_color_face_body_dif": [
+        {
+            "name": flag_preprocessor_resolution,
+            "value": 1024,
+            "min": 64,
+            "max": 2048,
+        },
+        {
+            "name": "Blur Ratio",
+            "value": 8,
+            "min": 1,
+            "max": 64,
+            "step": 1
+        }
+    ],
+    "sd_heatmap": [
+        {
+            "name": flag_preprocessor_resolution,
+            "value": 1024,
+            "min": 64,
+            "max": 2048,
+        }
+    ],
+    "sd_openpose_with_face": [
+        {
+            "name": flag_preprocessor_resolution,
+            "value": 512,
+            "min": 64,
+            "max": 2048,
         }
     ],
 }
