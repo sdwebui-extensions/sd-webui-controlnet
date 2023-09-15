@@ -41,6 +41,9 @@ class ResizeMode(Enum):
             return 2
         assert False, "NOTREACHED"
 
+class InputMode(Enum):
+    SIMPLE = "simple"
+    BATCH = "batch"
 
 resize_mode_aliases = {
     'Inner Fit (Scale to Fit)': 'Crop and Resize',
@@ -162,6 +165,9 @@ class ControlNetUnit:
             guidance_end: float = 1.0,
             pixel_perfect: bool = False,
             control_mode: Union[ControlMode, int, str] = ControlMode.BALANCED,
+            input_mode = InputMode.SIMPLE,
+            batch_images = '',
+            output_dir = '',
             **_kwargs,
     ):
         self.enabled = enabled
@@ -178,6 +184,9 @@ class ControlNetUnit:
         self.guidance_end = guidance_end
         self.pixel_perfect = pixel_perfect
         self.control_mode = control_mode
+        self.input_mode = input_mode
+        self.batch_images = batch_images
+        self.output_dir = output_dir
 
     def __eq__(self, other):
         if not isinstance(other, ControlNetUnit):
@@ -191,7 +200,10 @@ def to_base64_nparray(encoding: str):
     Convert a base64 image into the image type the extension uses
     """
 
-    return np.array(api.decode_base64_to_image(encoding)).astype('uint8')
+    pil_img = api.decode_base64_to_image(encoding)
+    if pil_img.format != 'RGB':
+        pil_img = pil_img.convert('RGB')
+    return np.array(pil_img).astype('uint8')
 
 
 def get_all_units_in_processing(p: processing.StableDiffusionProcessing) -> List[ControlNetUnit]:
@@ -302,6 +314,12 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
 
     if isinstance(unit, dict):
         unit = {ext_compat_keys.get(k, k): v for k, v in unit.items()}
+
+        if 'input_mode' in unit:
+            if unit['input_mode'] == 'simple':
+                unit['input_mode'] = InputMode.SIMPLE
+            elif unit['input_mode'] == 'batch':
+                unit['input_mode'] = InputMode.BATCH
 
         mask = None
         if 'mask' in unit:
