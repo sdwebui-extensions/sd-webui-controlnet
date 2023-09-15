@@ -36,6 +36,12 @@ from scripts.lvminthin import lvmin_thin, nake_nms
 from scripts.processor import model_free_preprocessors
 from scripts.controlnet_model_guess import build_model_by_guess
 
+from modules.common_paths import copy_folder
+if shared.cmd_opts.shared_dir:
+    copy_folder(os.path.join(shared.cmd_opts.shared_dir, 'annotator'), os.path.join(shared.cmd_opts.data_dir, 'models/annotator'))
+    copy_folder(os.path.join(shared.cmd_opts.shared_dir, 'models/annotator'), os.path.join(shared.cmd_opts.data_dir, 'models/annotator'))
+    copy_folder('/stable-diffusion-cache/models/annotator', os.path.join(shared.cmd_opts.data_dir, 'models/annotator'))
+
 
 gradio_compat = True
 try:
@@ -277,6 +283,8 @@ class Script(scripts.Script, metaclass=(
         
         controls = ()
         max_models = shared.opts.data.get("control_net_unit_count", 3)
+        if not shared.cmd_opts.just_ui:
+            max_models = 10
         elem_id_tabname = ("img2img" if is_img2img else "txt2img") + "_controlnet"
         with gr.Group(elem_id=elem_id_tabname):
             with gr.Accordion(f"ControlNet {controlnet_version.version_flag}", open = False, elem_id="controlnet"):
@@ -331,6 +339,9 @@ class Script(scripts.Script, metaclass=(
             raise RuntimeError(f"You have not selected any ControlNet Model.")
 
         model_path = global_state.cn_models.get(model, None)
+        if model_path is None:
+            global_state.update_cn_models()
+            model_path = global_state.cn_models.get(model, None)
         if model_path is None:
             model = find_closest_lora_model_name(model)
             model_path = global_state.cn_models.get(model, None)
