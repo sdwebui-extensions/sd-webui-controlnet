@@ -316,6 +316,14 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
     if isinstance(unit, dict):
         unit = {ext_compat_keys.get(k, k): v for k, v in unit.items()}
 
+        if 'input_mode' in unit:
+            if unit['input_mode'] == 'simple':
+                unit['input_mode'] = InputMode.SIMPLE
+            elif unit['input_mode'] == 'batch':
+                unit['input_mode'] = InputMode.BATCH
+        else:
+            unit['input_mode'] = InputMode.SIMPLE
+
         mask = None
         if 'mask' in unit:
             mask = unit['mask']
