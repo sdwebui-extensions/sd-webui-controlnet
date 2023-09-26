@@ -322,6 +322,11 @@ class Script(scripts.Script, metaclass=(
 
         # Remove model from cache to clear space before building another model
         if len(Script.model_cache) > 0 and len(Script.model_cache) >= shared.opts.data.get("control_net_model_cache_size", 2):
+            if shared.cmd_opts.blade:
+                # TODO(xuzhiying.xzy): figure out why we need this, seems related to patch conv weights
+                blade_control_net = Script.model_cache.get(list(Script.model_cache.keys())[0]).control_model
+                blade_control_net.input_blocks.to(devices.cpu)
+                blade_control_net.middle_block.to(devices.cpu)
             Script.model_cache.popitem(last=False)
             gc.collect()
             devices.torch_gc()
