@@ -5,7 +5,7 @@ models_path = shared.opts.data.get('control_net_modules_path', None)
 if not models_path:
     models_path = getattr(shared.cmd_opts, 'controlnet_annotator_models_path', None)
 if not models_path:
-    models_path = os.path.join(shared.cmd_opts.data_dir, 'models/annotator')
+    models_path = os.path.join(os.path.abspath(shared.cmd_opts.data_dir), 'models/annotator')
 
 if not os.path.isabs(models_path):
     models_path = os.path.join(shared.data_path, models_path)
