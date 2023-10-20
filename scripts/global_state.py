@@ -230,6 +230,8 @@ def update_cn_models():
     extra_lora_paths = (extra_lora_path for extra_lora_path in ext_dirs
                 if extra_lora_path is not None and os.path.exists(extra_lora_path))
     paths = [cn_models_dir, cn_models_dir_old, *extra_lora_paths]
+    if hasattr(shared.cmd_opts, 'public_cache') and shared.cmd_opts.public_cache and os.path.exists("/stable-diffusion-cache/models/ControlNet"):
+        paths = paths + ["/stable-diffusion-cache/models/ControlNet"]
 
     paths = list_cn_paths(paths)
 
