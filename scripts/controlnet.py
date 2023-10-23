@@ -594,6 +594,8 @@ class Script(scripts.Script, metaclass=(
             if isinstance(image['image'], str):
                 from modules.api.api import decode_base64_to_image
                 input_image = HWC3(np.asarray(decode_base64_to_image(image['image'])))
+            elif isinstance(image['image'], Image.Image):
+                input_image = HWC3(np.asarray(image['image']))
             else:
                 input_image = HWC3(image['image'])
 
