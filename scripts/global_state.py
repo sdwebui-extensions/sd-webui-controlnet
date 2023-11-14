@@ -12,7 +12,7 @@ from scripts.logging import logger
 from typing import Dict, Callable, Optional, Tuple, List
 from modules.common_paths import list_cn_paths
 
-CN_MODEL_EXTS = [".pt", ".pth", ".ckpt", ".safetensors"]
+CN_MODEL_EXTS = [".pt", ".pth", ".ckpt", ".safetensors", ".bin"]
 cn_models_dir = os.path.join(models_path, "ControlNet")
 cn_models_dir_old = os.path.join(scripts.basedir(), "models")
 cn_models = OrderedDict()      # "My_Lora(abcd1234)" -> C:/path/to/model.safetensors
@@ -68,6 +68,7 @@ cn_preprocessor_modules = {
     "revision_clipvision": functools.partial(clip, config='clip_g'),
     "revision_ignore_prompt": functools.partial(clip, config='clip_g'),
     "ip-adapter_clip_sd15": functools.partial(clip, config='clip_h'),
+    "ip-adapter_clip_sdxl_plus_vith": functools.partial(clip, config='clip_h'),
     "ip-adapter_clip_sdxl": functools.partial(clip, config='clip_g'),
     "color": color,
     "pidinet": pidinet,
@@ -118,6 +119,7 @@ cn_preprocessor_unloadable = {
     "revision_clipvision": functools.partial(unload_clip, config='clip_g'),
     "revision_ignore_prompt": functools.partial(unload_clip, config='clip_g'),
     "ip-adapter_clip_sd15": functools.partial(unload_clip, config='clip_h'),
+    "ip-adapter_clip_sdxl_plus_vith": functools.partial(unload_clip, config='clip_h'),
     "ip-adapter_clip_sdxl": functools.partial(unload_clip, config='clip_g'),
     "depth": unload_midas,
     "depth_leres": unload_leres,

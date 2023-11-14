@@ -457,6 +457,7 @@ class ControlNetUiGroup(object):
             fn=send_dimensions,
             inputs=[self.image],
             outputs=outputs,
+            show_progress=False
         )
 
     def register_webcam_toggle(self):
@@ -468,14 +469,14 @@ class ControlNetUiGroup(object):
                 "__type__": "update",
             }
 
-        self.webcam_enable.click(webcam_toggle, inputs=None, outputs=self.image)
+        self.webcam_enable.click(webcam_toggle, inputs=None, outputs=self.image, show_progress=False)
 
     def register_webcam_mirror_toggle(self):
         def webcam_mirror_toggle():
             self.webcam_mirrored = not self.webcam_mirrored
             return {"mirror_webcam": self.webcam_mirrored, "__type__": "update"}
 
-        self.webcam_mirror.click(webcam_mirror_toggle, inputs=None, outputs=self.image)
+        self.webcam_mirror.click(webcam_mirror_toggle, inputs=None, outputs=self.image, show_progress=False)
 
     def register_refresh_all_models(self):
         def refresh_all_models(*inputs):
@@ -487,7 +488,7 @@ class ControlNetUiGroup(object):
                 value=selected, choices=list(global_state.cn_models.keys())
             )
 
-        self.refresh_models.click(refresh_all_models, self.model, self.model)
+        self.refresh_models.click(refresh_all_models, self.model, self.model, show_progress=False)
 
     def register_build_sliders(self):
         if not self.gradio_compat:
@@ -586,8 +587,8 @@ class ControlNetUiGroup(object):
             self.refresh_models,
             self.control_mode
         ]
-        self.module.change(build_sliders, inputs=inputs, outputs=outputs)
-        self.pixel_perfect.change(build_sliders, inputs=inputs, outputs=outputs)
+        self.module.change(build_sliders, inputs=inputs, outputs=outputs, show_progress=False)
+        self.pixel_perfect.change(build_sliders, inputs=inputs, outputs=outputs, show_progress=False)
 
         if self.type_filter is not None:
 
@@ -621,6 +622,7 @@ class ControlNetUiGroup(object):
                 filter_selected,
                 inputs=[self.type_filter],
                 outputs=[self.module, self.model],
+                show_progress=False
             )
 
     def register_run_annotator(self, is_img2img: bool):
@@ -786,6 +788,7 @@ class ControlNetUiGroup(object):
                 self.openpose_editor.download_link,
                 self.openpose_editor.modal,
             ],
+            show_progress=False
         )
 
     def register_create_canvas(self):
@@ -793,11 +796,13 @@ class ControlNetUiGroup(object):
             lambda: gr.Accordion.update(visible=True),
             inputs=None,
             outputs=self.create_canvas,
+            show_progress=False
         )
         self.canvas_cancel_button.click(
             lambda: gr.Accordion.update(visible=False),
             inputs=None,
             outputs=self.create_canvas,
+            show_progress=False
         )
 
         def fn_canvas(h, w):
@@ -809,6 +814,7 @@ class ControlNetUiGroup(object):
             fn=fn_canvas,
             inputs=[self.canvas_height, self.canvas_width],
             outputs=[self.image, self.create_canvas],
+            show_progress=False
         )
 
     def register_img2img_same_input(self):
@@ -831,6 +837,7 @@ class ControlNetUiGroup(object):
                 self.loopback,
                 self.resize_mode,
             ],
+            show_progress=False
         )
         return
 

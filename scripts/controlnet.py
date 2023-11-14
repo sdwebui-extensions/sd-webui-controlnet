@@ -991,7 +991,7 @@ class Script(scripts.Script, metaclass=(
         return getattr(p, 'refiner_checkpoint', None) is not None
 
     def process(self, p, *args, **kwargs):
-        if not self.process_has_sdxl_refiner(p):
+        if not Script.process_has_sdxl_refiner(p):
             self.controlnet_hack(p)
         return
 
@@ -1001,7 +1001,7 @@ class Script(scripts.Script, metaclass=(
                                    noise_modifier=self.noise_modifier,
                                    sd_model=p.sd_model)
         self.noise_modifier = None
-        if self.process_has_sdxl_refiner(p):
+        if Script.process_has_sdxl_refiner(p):
             self.controlnet_hack(p)
         return
 
@@ -1107,7 +1107,7 @@ def on_ui_settings():
     shared.opts.add_option("control_net_unit_count", shared.OptionInfo(
         3, "Multi-ControlNet: ControlNet unit number (requires restart)", gr.Slider, {"minimum": 1, "maximum": 10, "step": 1}, section=section))
     shared.opts.add_option("control_net_model_cache_size", shared.OptionInfo(
-        1, "Model cache size (requires restart)", gr.Slider, {"minimum": 1, "maximum": 5, "step": 1}, section=section))
+        1, "Model cache size (requires restart)", gr.Slider, {"minimum": 1, "maximum": 10, "step": 1}, section=section))
     shared.opts.add_option("control_net_inpaint_blur_sigma", shared.OptionInfo(
         7, "ControlNet inpainting Gaussian blur sigma", gr.Slider, {"minimum": 0, "maximum": 64, "step": 1}, section=section))
     shared.opts.add_option("control_net_no_high_res_fix", shared.OptionInfo(
