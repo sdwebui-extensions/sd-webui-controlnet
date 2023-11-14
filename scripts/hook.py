@@ -759,7 +759,10 @@ class UnetHook(nn.Module):
                 h = x
                 for i, module in enumerate(self.input_blocks):
                     self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
-                    h = module(h, emb, context)
+                    if shared.cmd_opts.blade:
+                        h = module(h, emb, context).half()
+                    else:
+                         h = module(h, emb, context)
 
                     t2i_injection = [3, 5, 8] if is_sdxl else [2, 5, 8, 11]
 
@@ -769,7 +772,10 @@ class UnetHook(nn.Module):
                     hs.append(h)
 
                 self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
-                h = self.middle_block(h, emb, context)
+                if shared.cmd_opts.blade:
+                    h = self.middle_block(h, emb, context).half()
+                else:
+                    h = self.middle_block(h, emb, context)
 
             # U-Net Middle Block
             h = aligned_adding(h, total_controlnet_embedding.pop(), require_inpaint_hijack)
@@ -781,7 +787,10 @@ class UnetHook(nn.Module):
             for i, module in enumerate(self.output_blocks):
                 self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
                 h = th.cat([h, aligned_adding(hs.pop(), total_controlnet_embedding.pop(), require_inpaint_hijack)], dim=1)
-                h = module(h, emb, context)
+                if shared.cmd_opts.blade:
+                    h = module(h.half(), emb, context)
+                else:
+                    h = module(h, emb, context)
 
             # U-Net Output
             h = h.type(x.dtype)
