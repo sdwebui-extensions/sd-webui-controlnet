@@ -759,6 +759,7 @@ class UnetHook(nn.Module):
                 h = x
                 for i, module in enumerate(self.input_blocks):
                     self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
+
                     if shared.cmd_opts.blade:
                         h = module(h, emb, context).half()
                     else:
@@ -772,6 +773,7 @@ class UnetHook(nn.Module):
                     hs.append(h)
 
                 self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
+
                 if shared.cmd_opts.blade:
                     h = self.middle_block(h, emb, context).half()
                 else:
@@ -787,6 +789,7 @@ class UnetHook(nn.Module):
             for i, module in enumerate(self.output_blocks):
                 self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
                 h = th.cat([h, aligned_adding(hs.pop(), total_controlnet_embedding.pop(), require_inpaint_hijack)], dim=1)
+
                 if shared.cmd_opts.blade:
                     h = module(h.half(), emb, context)
                 else:
