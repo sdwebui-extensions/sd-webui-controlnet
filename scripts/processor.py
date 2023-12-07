@@ -744,6 +744,26 @@ def unload_sd_openpose_with_face():
         unload_sd_openpose_with_face_model()
 
 
+model_anime_face_segment = None
+
+
+def anime_face_segment(img, res=512, **kwargs):
+    img, remove_pad = resize_image_with_pad(img, res)
+    global model_anime_face_segment
+    if model_anime_face_segment is None:
+        from annotator.anime_face_segment import AnimeFaceSegment
+        model_anime_face_segment = AnimeFaceSegment()
+
+    result = model_anime_face_segment(img)
+    return remove_pad(result), True
+
+
+def unload_anime_face_segment():
+    global model_anime_face_segment
+    if model_anime_face_segment is not None:
+        model_anime_face_segment.unload_model()
+
+
 model_free_preprocessors = [
     "reference_only",
     "reference_adain",
@@ -1110,6 +1130,7 @@ preprocessor_sliders_config = {
             "step": 0.001
         }
     ],
+    "anime_face_segment": [
     "lineart_anime": [
         {
             "name": flag_preprocessor_resolution,
@@ -1305,7 +1326,7 @@ preprocessor_sliders_config = {
             "name": flag_preprocessor_resolution,
             "value": 512,
             "min": 64,
-            "max": 2048,
+            "max": 2048
         }
     ],
 }

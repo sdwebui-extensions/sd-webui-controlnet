@@ -102,11 +102,9 @@ class ControlNetUiGroup(object):
 
     def __init__(
         self,
-        gradio_compat: bool,
         default_unit: external_code.ControlNetUnit,
         preprocessors: List[Callable],
     ):
-        self.gradio_compat = gradio_compat
         self.default_unit = default_unit
         self.preprocessors = preprocessors
         self.webcam_enabled = False
@@ -170,6 +168,8 @@ class ControlNetUiGroup(object):
         Returns:
             None
         """
+        self.openpose_editor = OpenposeEditor()
+        
         with gr.Group(visible=not is_img2img) as self.image_upload_panel:
             self.save_detected_map = gr.Checkbox(value=True, visible=False)
             with gr.Tabs():
@@ -190,6 +190,8 @@ class ControlNetUiGroup(object):
                                 )
                                 else None,
                             )
+                            self.openpose_editor.render_upload()
+                            
                         with gr.Group(
                             visible=False, elem_classes=["cnet-generated-image-group"]
                         ) as self.generated_image_group:
@@ -205,7 +207,7 @@ class ControlNetUiGroup(object):
                             with gr.Group(
                                 elem_classes=["cnet-generated-image-control-group"]
                             ):
-                                self.openpose_editor = OpenposeEditor()
+                                self.openpose_editor.render_edit()
                                 preview_check_elem_id = f"{elem_id_tabname}_{tabname}_controlnet_preprocessor_preview_checkbox"
                                 preview_close_button_js = f"document.querySelector('#{preview_check_elem_id} input[type=\\'checkbox\\']').click();"
                                 gr.HTML(
@@ -296,6 +298,7 @@ class ControlNetUiGroup(object):
             self.preprocessor_preview = gr.Checkbox(
                 label="Allow Preview",
                 value=False,
+                elem_classes=["cnet-allow-preview"],
                 elem_id=preview_check_elem_id,
                 visible=not is_img2img,
             )
@@ -317,15 +320,14 @@ class ControlNetUiGroup(object):
             else:
                 self.upload_independent_img_in_img2img = None
 
-        if not shared.opts.data.get("controlnet_disable_control_type", False):
-            with gr.Row(elem_classes=["controlnet_control_type", "controlnet_row"]):
-                self.type_filter = gr.Radio(
-                    list(preprocessor_filters.keys()),
-                    label=f"Control Type",
-                    value="All",
-                    elem_id=f"{elem_id_tabname}_{tabname}_controlnet_type_filter_radio",
-                    elem_classes="controlnet_control_type_filter_group",
-                )
+        with gr.Row(elem_classes=["controlnet_control_type", "controlnet_row"]):
+            self.type_filter = gr.Radio(
+                list(preprocessor_filters.keys()),
+                label=f"Control Type",
+                value="All",
+                elem_id=f"{elem_id_tabname}_{tabname}_controlnet_type_filter_radio",
+                elem_classes="controlnet_control_type_filter_group",
+            )
 
         with gr.Row(elem_classes=["controlnet_preprocessor_model", "controlnet_row"]):
             self.module = gr.Dropdown(
@@ -507,9 +509,6 @@ class ControlNetUiGroup(object):
         self.refresh_models.click(refresh_all_models, self.model, self.model, show_progress=False)
 
     def register_build_sliders(self):
-        if not self.gradio_compat:
-            return
-
         def build_sliders(module: str, pp: bool):
             logger.debug(
                 f"Prevent update slider value: {self.prevent_next_n_slider_value_update}"
@@ -606,40 +605,38 @@ class ControlNetUiGroup(object):
         self.module.change(build_sliders, inputs=inputs, outputs=outputs, show_progress=False)
         self.pixel_perfect.change(build_sliders, inputs=inputs, outputs=outputs, show_progress=False)
 
-        if self.type_filter is not None:
+        def filter_selected(k: str):
+            logger.debug(f"Prevent update {self.prevent_next_n_module_update}")
+            logger.debug(f"Switch to control type {k}")
+            (
+                filtered_preprocessor_list,
+                filtered_model_list,
+                default_option,
+                default_model,
+            ) = global_state.select_control_type(k, global_state.get_sd_version())
 
-            def filter_selected(k: str):
-                logger.debug(f"Prevent update {self.prevent_next_n_module_update}")
-                logger.debug(f"Switch to control type {k}")
-                (
-                    filtered_preprocessor_list,
-                    filtered_model_list,
-                    default_option,
-                    default_model,
-                ) = global_state.select_control_type(k)
+            if self.prevent_next_n_module_update > 0:
+                self.prevent_next_n_module_update -= 1
+                return [
+                    gr.Dropdown.update(choices=filtered_preprocessor_list),
+                    gr.Dropdown.update(choices=filtered_model_list),
+                ]
+            else:
+                return [
+                    gr.Dropdown.update(
+                        value=default_option, choices=filtered_preprocessor_list
+                    ),
+                    gr.Dropdown.update(
+                        value=default_model, choices=filtered_model_list
+                    ),
+                ]
 
-                if self.prevent_next_n_module_update > 0:
-                    self.prevent_next_n_module_update -= 1
-                    return [
-                        gr.Dropdown.update(choices=filtered_preprocessor_list),
-                        gr.Dropdown.update(choices=filtered_model_list),
-                    ]
-                else:
-                    return [
-                        gr.Dropdown.update(
-                            value=default_option, choices=filtered_preprocessor_list
-                        ),
-                        gr.Dropdown.update(
-                            value=default_model, choices=filtered_model_list
-                        ),
-                    ]
-
-            self.type_filter.change(
-                filter_selected,
-                inputs=[self.type_filter],
-                outputs=[self.module, self.model],
-                show_progress=False
-            )
+        self.type_filter.change(
+            filter_selected,
+            inputs=[self.type_filter],
+            outputs=[self.module, self.model],
+            show_progress=False
+        )
 
     def register_run_annotator(self, is_img2img: bool):
         def run_annotator(image, module, pres, pthr_a, pthr_b, t2i_w, t2i_h, pp, rm):
@@ -875,8 +872,10 @@ class ControlNetUiGroup(object):
         self.register_shift_preview()
         self.register_create_canvas()
         self.openpose_editor.register_callbacks(
-            self.generated_image, self.use_preview_as_input
+            self.generated_image, self.use_preview_as_input,
+            self.model,
         )
+        assert self.type_filter is not None
         self.preset_panel.register_callbacks(
             self,
             self.type_filter,

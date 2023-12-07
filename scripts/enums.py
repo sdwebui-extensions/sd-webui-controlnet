@@ -14,13 +14,44 @@ class StableDiffusionVersion(Enum):
         """Based on the model name provided, guess what stable diffusion version it is.
         This might not be accurate without actually inspect the file content.
         """
-        if "15" in model_name or "1.5" in model_name:
+        if any(f"sd{v}" in model_name.lower() for v in ("14", "15", "16")):
             return StableDiffusionVersion.SD1x
 
-        if "21" in model_name or "2.1" in model_name:
+        if "sd21" in model_name or "2.1" in model_name:
             return StableDiffusionVersion.SD2x
 
         if "xl" in model_name.lower():
             return StableDiffusionVersion.SDXL
 
         return StableDiffusionVersion.UNKNOWN
+
+
+class ControlModelType(Enum):
+    """
+    The type of Control Models (supported or not).
+    """
+
+    ControlNet = "ControlNet, Lvmin Zhang"
+    T2I_Adapter = "T2I_Adapter, Chong Mou"
+    T2I_StyleAdapter = "T2I_StyleAdapter, Chong Mou"
+    T2I_CoAdapter = "T2I_CoAdapter, Chong Mou"
+    MasaCtrl = "MasaCtrl, Mingdeng Cao"
+    GLIGEN = "GLIGEN, Yuheng Li"
+    AttentionInjection = "AttentionInjection, Lvmin Zhang"  # A simple attention injection written by Lvmin
+    StableSR = "StableSR, Jianyi Wang"
+    PromptDiffusion = "PromptDiffusion, Zhendong Wang"
+    ControlLoRA = "ControlLoRA, Wu Hecong"
+    ReVision = "ReVision, Stability"
+    IPAdapter = "IPAdapter, Hu Ye"
+    Controlllite = "Controlllite, Kohya"
+
+
+# Written by Lvmin
+class AutoMachine(Enum):
+    """
+    Lvmin's algorithm for Attention/AdaIn AutoMachine States.
+    """
+
+    Read = "Read"
+    Write = "Write"
+    StyleAlign = "StyleAlign"

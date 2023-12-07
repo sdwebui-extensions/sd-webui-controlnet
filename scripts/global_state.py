@@ -6,8 +6,10 @@ from collections import OrderedDict
 from modules import shared, scripts, sd_models
 from modules.paths import models_path
 from scripts.processor import *
+import scripts.processor as processor
 from scripts.utils import ndarray_lru_cache
 from scripts.logging import logger
+from scripts.enums import StableDiffusionVersion
 
 from typing import Dict, Callable, Optional, Tuple, List
 from modules.common_paths import list_cn_paths
@@ -102,6 +104,7 @@ cn_preprocessor_modules = {
     "recolor_luminance": recolor_luminance,
     "recolor_intensity": recolor_intensity,
     "blur_gaussian": blur_gaussian,
+    "anime_face_segment": anime_face_segment,
     "sd_hed": sd_hed,
     "sd_color": sd_color,
     # "sd_color_smooth": sd_color_smooth,
@@ -140,6 +143,7 @@ cn_preprocessor_unloadable = {
     "lineart_anime": unload_lineart_anime,
     "lineart_anime_denoise": unload_lineart_anime_denoise,
     "inpaint_only+lama": unload_lama_inpaint,
+    "anime_face_segment": unload_anime_face_segment,
     "sd_color_face_body_dif": unload_sd_color_face_body_dif,
     "sd_openpose_with_face": unload_sd_openpose_with_face,
 }
@@ -162,6 +166,7 @@ preprocessor_aliases = {
     "oneformer_ade20k": "seg_ofade20k",
     "pidinet_scribble": "scribble_pidinet",
     "inpaint": "inpaint_global_harmonious",
+    "anime_face_segment": "seg_anime_face",
 }
 
 ui_preprocessor_keys = ['none', preprocessor_aliases['invert']]
@@ -257,35 +262,63 @@ def update_cn_models():
         cn_models_names[name] = name_and_hash
 
 
-def select_control_type(control_type: str) -> Tuple[List[str], List[str], str, str]:
-    default_option = preprocessor_filters[control_type]
+def get_sd_version() -> StableDiffusionVersion:
+    if shared.sd_model.is_sdxl:
+        return StableDiffusionVersion.SDXL
+    elif shared.sd_model.is_sd2:
+        return StableDiffusionVersion.SD2x
+    elif shared.sd_model.is_sd1:
+        return StableDiffusionVersion.SD1x
+    else:
+        return StableDiffusionVersion.UNKNOWN
+
+    
+def select_control_type(
+    control_type: str,
+    sd_version: StableDiffusionVersion = StableDiffusionVersion.UNKNOWN,
+    cn_models: Dict = cn_models, # Override or testing
+) -> Tuple[List[str], List[str], str, str]:
+    default_option = processor.preprocessor_filters[control_type]
     pattern = control_type.lower()
     preprocessor_list = ui_preprocessor_keys
-    model_list = list(cn_models.keys())
+    all_models = list(cn_models.keys())
+
     if pattern == "all":
         return [
             preprocessor_list,
-            model_list,
+            all_models,
             'none', #default option
             "None"  #default model 
         ]
     filtered_preprocessor_list = [
         x
         for x in preprocessor_list
-        if pattern in x.lower() or any(a in x.lower() for a in preprocessor_filters_aliases.get(pattern, [])) or x.lower() == "none"
+        if (
+            pattern in x.lower() or
+            any(a in x.lower() for a in processor.preprocessor_filters_aliases.get(pattern, [])) or
+            x.lower() == "none"
+        )
     ]
     if pattern in ["canny", "lineart", "scribble/sketch", "mlsd"]:
         filtered_preprocessor_list += [
             x for x in preprocessor_list if "invert" in x.lower()
         ]
     filtered_model_list = [
-        x for x in model_list if pattern in x.lower() or any(a in x.lower() for a in preprocessor_filters_aliases.get(pattern, [])) or x.lower() == "none"
+        model for model in all_models
+        if model.lower() == "none" or
+        ((
+            pattern in model.lower() or
+            any(a in model.lower() for a in processor.preprocessor_filters_aliases.get(pattern, []))
+        ) and (
+            sd_version == StableDiffusionVersion.UNKNOWN or
+            sd_version == StableDiffusionVersion.detect_from_model_name(model)
+        ))
     ]
+    assert len(filtered_model_list) > 0, "'None' model should always be available."
     if default_option not in filtered_preprocessor_list:
         default_option = filtered_preprocessor_list[0]
     if len(filtered_model_list) == 1:
         default_model = "None"
-        filtered_model_list = model_list
     else:
         default_model = filtered_model_list[1]
         for x in filtered_model_list:
