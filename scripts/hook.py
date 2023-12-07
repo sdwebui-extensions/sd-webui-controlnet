@@ -761,6 +761,7 @@ class UnetHook(nn.Module):
                     self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
 
                     if shared.cmd_opts.blade:
+                        context = context.half()
                         h = module(h, emb, context).half()
                     else:
                          h = module(h, emb, context)
