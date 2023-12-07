@@ -27,6 +27,8 @@ from scripts.controlnet_ui.tool_button import ToolButton
 from modules import shared
 from modules.ui_components import FormRow
 
+import requests
+
 
 class UiControlNetUnit(external_code.ControlNetUnit):
     """The data class that stores all states of a ControlNetUnit."""
@@ -684,6 +686,41 @@ class ControlNetUiGroup(object):
             def is_openpose(module: str):
                 return "openpose" in module
 
+            if shared.cmd_opts.just_ui:
+                url = '/'.join([shared.cmd_opts.server_path, 'controlnet/detect'])
+                img_b64 = shared.encode_image_to_base64(img)
+                out = requests.post(url, json={
+                    'controlnet_input_images': [img_b64],
+                    'controlnet_module': module,
+                    'controlnet_processor_res': pres,
+                    'controlnet_threshold_a': pthr_a,
+                    'controlnet_threshold_b': pthr_b
+                })
+                if out.status_code==200:
+                    out_text = json.loads(out.text)
+                    is_image = False
+                    for img_b64 in out_text.get('images', []):
+                        try:
+                            result = external_code.to_base64_nparray(img_b64)
+                            is_image = True
+                        except:
+                            is_image = False
+                    if is_openpose(module):
+                        json_acceptor.value = json.dumps(out_text['poses'][0])
+                    if not is_image:
+                        result = img
+                    result = external_code.visualize_inpaint_mask(result)
+                    return (
+                        # Update to `generated_image`
+                        gr.update(value=result, visible=True, interactive=False),
+                        # preprocessor_preview
+                        gr.update(value=True),
+                        # openpose editor
+                        *self.openpose_editor.update(json_acceptor.value),
+                    )
+                else:
+                    raise Exception(f"failed with {out.text} from {out.headers.get('process-host')}")
+
             # Only openpose preprocessor returns a JSON output, pass json_acceptor
             # only when a JSON output is expected. This will make preprocessor cache
             # work for all other preprocessors other than openpose ones. JSON acceptor
@@ -844,7 +881,7 @@ class ControlNetUiGroup(object):
             self.type_filter,
             *[
                 getattr(self, key)
-                for key in vars(external_code.ControlNetUnit()).keys()
+                for key in vars(external_code.ControlNetUnit()).keys() if hasattr(self, key) 
             ],
         )
         if is_img2img:

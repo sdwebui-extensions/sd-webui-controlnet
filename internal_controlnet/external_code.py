@@ -48,6 +48,9 @@ class ResizeMode(Enum):
             return 2
         assert False, "NOTREACHED"
 
+class InputMode(Enum):
+    SIMPLE = "simple"
+    BATCH = "batch"
 
 resize_mode_aliases = {
     'Inner Fit (Scale to Fit)': 'Crop and Resize',
@@ -173,6 +176,7 @@ class ControlNetUnit:
     # Currently the option is only accessible in API calls.
     save_detected_map: bool = True
 
+
     def __eq__(self, other):
         if not isinstance(other, ControlNetUnit):
             return False
@@ -185,7 +189,10 @@ def to_base64_nparray(encoding: str):
     Convert a base64 image into the image type the extension uses
     """
 
-    return np.array(api.decode_base64_to_image(encoding)).astype('uint8')
+    pil_img = api.decode_base64_to_image(encoding)
+    if pil_img.format != 'RGB':
+        pil_img = pil_img.convert('RGB')
+    return np.array(pil_img).astype('uint8')
 
 
 def get_all_units_in_processing(p: processing.StableDiffusionProcessing) -> List[ControlNetUnit]:
@@ -297,6 +304,12 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
     if isinstance(unit, dict):
         unit = {ext_compat_keys.get(k, k): v for k, v in unit.items()}
 
+        if 'input_mode' in unit:
+            if unit['input_mode'] == 'simple':
+                unit['input_mode'] = InputMode.SIMPLE
+            elif unit['input_mode'] == 'batch':
+                unit['input_mode'] = InputMode.BATCH
+
         mask = None
         if 'mask' in unit:
             mask = unit['mask']
@@ -308,8 +321,32 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
 
         if 'guess_mode' in unit:
             logger.warning('Guess Mode is removed since 1.1.136. Please use Control Mode instead.')
+        
+        input_mode = InputMode.SIMPLE
+        if "input_mode" in unit:
+            input_mode = unit["input_mode"]
+            del unit["input_mode"]
+        batch_images = ''
+        if "batch_images" in unit:
+            batch_images = unit["batch_images"]
+            del unit["batch_images"]
+        output_dir = ''
+        if "output_dir" in unit:
+            output_dir = unit["output_dir"]
+            del unit["output_dir"]
+        extra_attr = {}
+        for key in unit:
+            if not hasattr(ControlNetUnit, key):
+                extra_attr[key] = unit[key]
+        for key in extra_attr:
+            del unit[key]
 
         unit = ControlNetUnit(**unit)
+        unit.input_mode = input_mode
+        unit.batch_images = batch_images
+        unit.output_dir = output_dir
+        for key in extra_attr:
+            setattr(unit, key, extra_attr[key])
 
     # temporary, check #602
     # assert isinstance(unit, ControlNetUnit), f'bad argument to controlnet extension: {unit}\nexpected Union[dict[str, Any], ControlNetUnit]'

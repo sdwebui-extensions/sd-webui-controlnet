@@ -12,6 +12,7 @@ from scripts.logging import logger
 from scripts.enums import StableDiffusionVersion
 
 from typing import Dict, Callable, Optional, Tuple, List
+from modules.common_paths import list_cn_paths
 
 CN_MODEL_EXTS = [".pt", ".pth", ".ckpt", ".safetensors", ".bin"]
 cn_models_dir = os.path.join(models_path, "ControlNet")
@@ -104,6 +105,13 @@ cn_preprocessor_modules = {
     "recolor_intensity": recolor_intensity,
     "blur_gaussian": blur_gaussian,
     "anime_face_segment": anime_face_segment,
+    "sd_hed": sd_hed,
+    "sd_color": sd_color,
+    # "sd_color_smooth": sd_color_smooth,
+    "sd_color_face_body_dif": sd_color_face_body_dif,
+    "sd_heatmap": sd_heatmap,
+    "sd_t2t": sd_t2t,
+    "sd_openpose_with_face": sd_openpose_with_face,
 }
 
 cn_preprocessor_unloadable = {
@@ -136,6 +144,8 @@ cn_preprocessor_unloadable = {
     "lineart_anime_denoise": unload_lineart_anime_denoise,
     "inpaint_only+lama": unload_lama_inpaint,
     "anime_face_segment": unload_anime_face_segment,
+    "sd_color_face_body_dif": unload_sd_color_face_body_dif,
+    "sd_openpose_with_face": unload_sd_openpose_with_face,
 }
 
 preprocessor_aliases = {
@@ -210,6 +220,9 @@ def get_all_models(sort_by, filter_by, path):
 
     for finfo in fileinfos:
         filename = finfo[0]
+        if os.path.islink(filename) and not os.path.exists(filename):
+            print(f"Skipping broken symlink: {filename}")
+            continue
         name = os.path.splitext(os.path.basename(filename))[0]
         # Prevent a hypothetical "None.pt" from being listed.
         if name != "None":
@@ -224,6 +237,10 @@ def update_cn_models():
     extra_lora_paths = (extra_lora_path for extra_lora_path in ext_dirs
                 if extra_lora_path is not None and os.path.exists(extra_lora_path))
     paths = [cn_models_dir, cn_models_dir_old, *extra_lora_paths]
+    if hasattr(shared.cmd_opts, 'public_cache') and shared.cmd_opts.public_cache and os.path.exists("/stable-diffusion-cache/models/ControlNet"):
+        paths = paths + ["/stable-diffusion-cache/models/ControlNet"]
+
+    paths = list_cn_paths(paths)
 
     for path in paths:
         sort_by = shared.opts.data.get(

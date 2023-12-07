@@ -38,6 +38,22 @@ from scripts.processor import model_free_preprocessors
 from scripts.controlnet_model_guess import build_model_by_guess
 from scripts.hook import torch_dfs
 
+from modules.common_paths import copy_folder
+if shared.cmd_opts.shared_dir:
+    copy_folder(os.path.join(shared.cmd_opts.shared_dir, 'annotator'), os.path.join(shared.cmd_opts.data_dir, 'models/annotator'))
+    copy_folder(os.path.join(shared.cmd_opts.shared_dir, 'models/annotator'), os.path.join(shared.cmd_opts.data_dir, 'models/annotator'))
+    copy_folder('/stable-diffusion-cache/models/annotator', os.path.join(shared.cmd_opts.data_dir, 'models/annotator'))
+
+
+gradio_compat = True
+try:
+    from distutils.version import LooseVersion
+    from importlib_metadata import version
+    if LooseVersion(version("gradio")) < LooseVersion("3.10"):
+        gradio_compat = False
+except ImportError:
+    pass
+
 
 # Gradio 3.32 bug fix
 import tempfile
@@ -318,6 +334,8 @@ class Script(scripts.Script, metaclass=(
         
         controls = ()
         max_models = shared.opts.data.get("control_net_unit_count", 3)
+        if not shared.cmd_opts.just_ui:
+            max_models = 10
         elem_id_tabname = ("img2img" if is_img2img else "txt2img") + "_controlnet"
         with gr.Group(elem_id=elem_id_tabname):
             with gr.Accordion(f"ControlNet {controlnet_version.version_flag}", open = False, elem_id="controlnet"):
@@ -357,6 +375,11 @@ class Script(scripts.Script, metaclass=(
 
         # Remove model from cache to clear space before building another model
         if len(Script.model_cache) > 0 and len(Script.model_cache) >= shared.opts.data.get("control_net_model_cache_size", 2):
+            if shared.cmd_opts.blade:
+                # TODO(xuzhiying.xzy): figure out why we need this, seems related to patch conv weights
+                blade_control_net = Script.model_cache.get(list(Script.model_cache.keys())[0]).control_model
+                blade_control_net.input_blocks.to(devices.cpu)
+                blade_control_net.middle_block.to(devices.cpu)
             Script.model_cache.popitem(last=False)
             gc.collect()
             devices.torch_gc()
@@ -374,6 +397,9 @@ class Script(scripts.Script, metaclass=(
             raise RuntimeError(f"You have not selected any ControlNet Model.")
 
         model_path = global_state.cn_models.get(model, None)
+        if model_path is None:
+            global_state.update_cn_models()
+            model_path = global_state.cn_models.get(model, None)
         if model_path is None:
             model = find_closest_lora_model_name(model)
             model_path = global_state.cn_models.get(model, None)
@@ -621,6 +647,8 @@ class Script(scripts.Script, metaclass=(
             if isinstance(image['image'], str):
                 from modules.api.api import decode_base64_to_image
                 input_image = HWC3(np.asarray(decode_base64_to_image(image['image'])))
+            elif isinstance(image['image'], Image.Image):
+                input_image = HWC3(np.asarray(image['image']))
             else:
                 input_image = HWC3(image['image'])
 

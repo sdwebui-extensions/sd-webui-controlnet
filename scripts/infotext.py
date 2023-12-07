@@ -74,7 +74,7 @@ class Infotext(object):
         unit_prefix = Infotext.unit_prefix(unit_index)
         for field in vars(external_code.ControlNetUnit()).keys():
             # Exclude image for infotext.
-            if field == "image":
+            if field in ["image", "input_mode", "batch_images", "output_dir"]:
                 continue
 
             # Every field in ControlNetUnit should have a cooresponding
