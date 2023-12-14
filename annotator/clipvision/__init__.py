@@ -83,7 +83,7 @@ clip_vision_h_uc = torch.load(clip_vision_h_uc,  map_location=torch.device('cuda
 
 clip_vision_vith_uc = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'clip_vision_vith_uc.data')
 clip_vision_vith_uc = torch.load(clip_vision_vith_uc, map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))['uc']
-
+model_cache = {}
 
 class ClipVisionDetector:
     def __init__(self, config):
@@ -98,7 +98,15 @@ class ClipVisionDetector:
         if not os.path.exists(file_path):
             load_file_from_url(url=self.download_link, model_dir=self.model_path, file_name=self.file_name)
         config = CLIPVisionConfig(**self.config)
-        self.model = CLIPVisionModelWithProjection(config)
+        if self.file_name not in model_cache:
+            model_cache[self.file_name] = CLIPVisionModelWithProjection(config)
+            sd = torch.load(file_path, map_location=torch.device('cpu'))
+            model_cache[self.file_name].load_state_dict(sd, strict=False)
+            del sd
+        
+        self.model = model_cache[self.file_name]
+        self.model.eval()
+        self.model.cpu()
         self.processor = CLIPImageProcessor(crop_size=224,
                                             do_center_crop=True,
                                             do_convert_rgb=True,
@@ -109,16 +117,10 @@ class ClipVisionDetector:
                                             resample=3,
                                             size=224)
 
-        sd = torch.load(file_path, map_location=torch.device('cpu'))
-        self.model.load_state_dict(sd, strict=False)
-        del sd
-
-        self.model.eval()
-        self.model.cpu()
-
     def unload_model(self):
-        if self.model is not None:
-            self.model.to('meta')
+        pass
+        # if self.model is not None:
+        #     self.model.to('meta')
 
     def __call__(self, input_image):
         with torch.no_grad():
