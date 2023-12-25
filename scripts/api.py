@@ -16,11 +16,11 @@ from scripts.logging import logger
 
 
 def encode_to_base64(image):
-    if type(image) is str:
+    if isinstance(image, str):
         return image
-    elif type(image) is Image.Image:
+    elif isinstance(image, Image.Image):
         return api.encode_pil_to_base64(image)
-    elif type(image) is np.ndarray:
+    elif isinstance(image, np.ndarray):
         return encode_np_to_base64(image)
     else:
         return ""
