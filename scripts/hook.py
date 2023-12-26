@@ -743,10 +743,9 @@ class UnetHook(nn.Module):
                     self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
 
                     if shared.cmd_opts.blade:
-                        context = context.half()
                         h = module(h, emb, context).half()
                     else:
-                         h = module(h, emb, context)
+                        h = module(h, emb, context)
 
                     t2i_injection = [3, 5, 8] if is_sdxl else [2, 5, 8, 11]
 
