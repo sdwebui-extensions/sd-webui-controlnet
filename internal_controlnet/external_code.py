@@ -157,8 +157,8 @@ class ControlNetUnit:
     Represents an entire ControlNet processing unit.
     """
     enabled: bool = True
-    module: Optional[str] = None
-    model: Optional[str] = None
+    module: str = "none"
+    model: str = "None"
     weight: float = 1.0
     image: Optional[InputImage] = None
     resize_mode: Union[ResizeMode, int, str] = ResizeMode.INNER_FIT
@@ -341,7 +341,7 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
         for key in extra_attr:
             del unit[key]
 
-        unit = ControlNetUnit(**unit)
+        unit = ControlNetUnit(**{k: v for k, v in unit.items() if k in vars(ControlNetUnit).keys()})
         unit.input_mode = input_mode
         unit.batch_images = batch_images
         unit.output_dir = output_dir
