@@ -323,7 +323,7 @@ class Script(scripts.Script, metaclass=(
                     fn=update_ui_batch_options, inputs=unit_args
                 )
 
-        return
+        return unit_args
 
     def ui(self, is_img2img):
         """this function should create gradio UI elements. See https://gradio.app/docs/#components
@@ -353,13 +353,13 @@ class Script(scripts.Script, metaclass=(
                         infotext.register_unit(0, group)
                         controls += (state,)
                 with gr.Accordion(f"Batch Options", open=False, elem_id="controlnet_batch_options"):
-                    self.ui_batch_options(is_img2img, elem_id_tabname)
+                    unit_args = self.ui_batch_options(is_img2img, elem_id_tabname)
 
         if shared.opts.data.get("control_net_sync_field_args", True):
             self.infotext_fields = infotext.infotext_fields
             self.paste_field_names = infotext.paste_field_names
 
-        return controls
+        return controls + tuple(unit_args)
     
     @staticmethod
     def clear_control_model_cache():
@@ -729,7 +729,7 @@ class Script(scripts.Script, metaclass=(
         if sd_version != cnet_sd_version:
             raise Exception(f"ControlNet model {unit.model}({cnet_sd_version}) is not compatible with sd model({sd_version})")
 
-    def controlnet_main_entry(self, p):
+    def controlnet_main_entry(self, p, batch_option_uint_separate, batch_option_style_align):
         sd_ldm = p.sd_model
         unet = sd_ldm.model.diffusion_model
         self.noise_modifier = None
@@ -746,8 +746,8 @@ class Script(scripts.Script, metaclass=(
         if not batch_hijack.instance.is_batch:
             self.enabled_units = Script.get_enabled_units(p)
 
-        batch_option_uint_separate = self.ui_batch_option_state[0] == external_code.BatchOption.SEPARATE.value
-        batch_option_style_align = self.ui_batch_option_state[1]
+        batch_option_uint_separate = batch_option_uint_separate == external_code.BatchOption.SEPARATE.value
+        # batch_option_style_align = self.ui_batch_option_state[1]
 
         if len(self.enabled_units) == 0 and not batch_option_style_align:
            self.latest_network = None
@@ -1065,9 +1065,9 @@ class Script(scripts.Script, metaclass=(
         self.detected_map = detected_maps
         self.post_processors = post_processors
 
-    def controlnet_hack(self, p):
+    def controlnet_hack(self, p, batch_option_uint_separate, batch_option_style_align):
         t = time.time()
-        self.controlnet_main_entry(p)
+        self.controlnet_main_entry(p, batch_option_uint_separate, batch_option_style_align)
         if len(self.enabled_units) > 0:
             logger.info(f'ControlNet Hooked - Time = {time.time() - t}')
         return
@@ -1078,7 +1078,7 @@ class Script(scripts.Script, metaclass=(
 
     def process(self, p, *args, **kwargs):
         if not Script.process_has_sdxl_refiner(p):
-            self.controlnet_hack(p)
+            self.controlnet_hack(p, args[-2], args[-1])
         return
 
     def before_process_batch(self, p, *args, **kwargs):
