@@ -729,7 +729,7 @@ class Script(scripts.Script, metaclass=(
         if sd_version != cnet_sd_version:
             raise Exception(f"ControlNet model {unit.model}({cnet_sd_version}) is not compatible with sd model({sd_version})")
 
-    def controlnet_main_entry(self, p, batch_option_uint_separate, batch_option_style_align):
+    def controlnet_main_entry(self, p, batch_option_uint_separate="All ControlNet units for all images in a batch", batch_option_style_align=False):
         sd_ldm = p.sd_model
         unet = sd_ldm.model.diffusion_model
         self.noise_modifier = None
