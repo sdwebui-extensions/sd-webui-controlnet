@@ -1065,7 +1065,7 @@ class Script(scripts.Script, metaclass=(
         self.detected_map = detected_maps
         self.post_processors = post_processors
 
-    def controlnet_hack(self, p, batch_option_uint_separate, batch_option_style_align):
+    def controlnet_hack(self, p, batch_option_uint_separate="All ControlNet units for all images in a batch", batch_option_style_align=False):
         t = time.time()
         self.controlnet_main_entry(p, batch_option_uint_separate, batch_option_style_align)
         if len(self.enabled_units) > 0:
@@ -1088,7 +1088,7 @@ class Script(scripts.Script, metaclass=(
                                    sd_model=p.sd_model)
         self.noise_modifier = None
         if Script.process_has_sdxl_refiner(p):
-            self.controlnet_hack(p)
+            self.controlnet_hack(p, args[-2], args[-1])
         return
 
     def postprocess_batch(self, p, *args, **kwargs):
