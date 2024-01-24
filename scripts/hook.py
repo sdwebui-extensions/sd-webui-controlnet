@@ -139,10 +139,16 @@ class TorchHijackForUnet:
 
         raise AttributeError("'{}' object has no attribute '{}'".format(type(self).__name__, item))
 
-    def cat(self, tensors, *args, **kwargs):
+    def cat(self, tensors, use_blade, *args, **kwargs):
         if len(tensors) == 2:
             a, b = tensors
-            if a.shape[-2:] != b.shape[-2:]:
+            if use_blade and a.shape[1:3] != b.shape[1:3]:
+                a = a.permute(0, 3, 1, 2) # to nchw
+                b = b.permute(0, 3, 1, 2)
+                a = torch.nn.functional.interpolate(a, b.shape[-2:], mode="nearest")
+                a = a.permute(0, 2, 3, 1).contiguous() # to nhwc
+                b = b.permute(0, 2, 3, 1).contiguous()
+            elif not use_blade and a.shape[-2:] != b.shape[-2:]:
                 a = torch.nn.functional.interpolate(a, b.shape[-2:], mode="nearest")
 
             tensors = (a, b)
@@ -218,7 +224,7 @@ class ControlParams:
         return control_disabled
 
 
-def aligned_adding(base, x, require_channel_alignment):
+def aligned_adding(base, x, require_channel_alignment, use_blade=False):
     if isinstance(x, float):
         if x == 0.0:
             return base
@@ -230,7 +236,10 @@ def aligned_adding(base, x, require_channel_alignment):
         x = zeros
 
     # resize to sample resolution
-    base_h, base_w = base.shape[-2:]
+    if use_blade:
+        base_h, base_w = base.shape[1: 3]
+    else:
+        base_h, base_w = base.shape[-2:]
     xh, xw = x.shape[-2:]
 
     if xh > 1 or xw > 1:
@@ -238,7 +247,10 @@ def aligned_adding(base, x, require_channel_alignment):
             # logger.info('[Warning] ControlNet finds unexpected mis-alignment in tensor shape.')
             x = th.nn.functional.interpolate(x, size=(base_h, base_w), mode="nearest")
 
-    return base + x
+    if use_blade:
+        return base + x.permute(0, 2, 3, 1)
+    else:
+        return base + x
 
 
 # DFS Search for Torch.nn.Module, Written by Lvmin
@@ -733,6 +745,8 @@ class UnetHook(nn.Module):
                 outer.attention_auto_machine = AutoMachine.Read
                 outer.gn_auto_machine = AutoMachine.Read
 
+            use_blade = hasattr(shared.cmd_opts, "blade") and shared.cmd_opts.blade and self.input_blocks == self.blade_input_blocks
+
             # U-Net Encoder
             hs = []
             with th.no_grad():
@@ -744,10 +758,13 @@ class UnetHook(nn.Module):
                     emb = emb + self.label_emb(y)
 
                 h = x
+                if use_blade:
+                    h = h.permute(0, 2, 3, 1).contiguous() # to nhwc
+                
                 for i, module in enumerate(self.input_blocks):
                     self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
 
-                    if shared.cmd_opts.blade:
+                    if use_blade:
                         h = module(h, emb, context).half()
                     else:
                         h = module(h, emb, context)
@@ -755,35 +772,40 @@ class UnetHook(nn.Module):
                     t2i_injection = [3, 5, 8] if is_sdxl else [2, 5, 8, 11]
 
                     if i in t2i_injection:
-                        h = aligned_adding(h, total_t2i_adapter_embedding.pop(0), require_inpaint_hijack)
+                        h = aligned_adding(h, total_t2i_adapter_embedding.pop(0), require_inpaint_hijack, use_blade=use_blade)
 
                     hs.append(h)
 
                 self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
 
-                if shared.cmd_opts.blade:
+                if use_blade:
                     h = self.middle_block(h, emb, context).half()
                 else:
                     h = self.middle_block(h, emb, context)
 
             # U-Net Middle Block
-            h = aligned_adding(h, total_controlnet_embedding.pop(), require_inpaint_hijack)
+            h = aligned_adding(h, total_controlnet_embedding.pop(), require_inpaint_hijack, use_blade=use_blade)
 
             if len(total_t2i_adapter_embedding) > 0 and is_sdxl:
-                h = aligned_adding(h, total_t2i_adapter_embedding.pop(0), require_inpaint_hijack)
+                h = aligned_adding(h, total_t2i_adapter_embedding.pop(0), require_inpaint_hijack, use_blade=use_blade)
 
             # U-Net Decoder
             for i, module in enumerate(self.output_blocks):
                 self.current_h_shape = (h.shape[0], h.shape[1], h.shape[2], h.shape[3])
-                h = th.cat([h, aligned_adding(hs.pop(), total_controlnet_embedding.pop(), require_inpaint_hijack)], dim=1)
+                h = th.cat([h, aligned_adding(hs.pop(), total_controlnet_embedding.pop(), require_inpaint_hijack, 
+                    use_blade=use_blade)], use_blade, dim=-1 if use_blade else 1)
 
-                if shared.cmd_opts.blade:
+                if use_blade:
                     h = module(h.half(), emb, context)
                 else:
                     h = module(h, emb, context)
 
             # U-Net Output
             h = h.type(x.dtype)
+
+            if use_blade:
+                h = h.permute(0, 3, 1, 2) # to nchw, no contiguous is fine
+            
             h = self.out(h)
 
             # Post-processing for color fix
