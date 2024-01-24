@@ -307,7 +307,7 @@ class Script(scripts.Script, metaclass=(
         """
         infotext = Infotext()
         ui_groups = []
-        controls = []
+        controls = ()
         max_models = shared.opts.data.get("control_net_unit_count", 3)
         if not shared.cmd_opts.just_ui:
             max_models = 10
@@ -322,12 +322,12 @@ class Script(scripts.Script, metaclass=(
                                         elem_classes=['cnet-unit-tab']):
                                 group, state = self.uigroup(f"ControlNet-{i}", is_img2img, elem_id_tabname, photopea)
                                 ui_groups.append(group)
-                                controls.append(state)
+                                controls += (state,)
                 else:
                     with gr.Column():
                         group, state = self.uigroup(f"ControlNet", is_img2img, elem_id_tabname, photopea)
                         ui_groups.append(group)
-                        controls.append(state)
+                        controls += (state,)
                 with gr.Accordion(f"Batch Options", open=False, elem_id="controlnet_batch_options"):
                     unit_args = self.ui_batch_options(is_img2img, elem_id_tabname)
 
