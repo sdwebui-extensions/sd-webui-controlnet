@@ -53,6 +53,8 @@ try:
 except ImportError:
     pass
 
+from scripts.external_code import InputMode
+
 
 # Gradio 3.32 bug fix
 import tempfile
@@ -581,6 +583,14 @@ class Script(scripts.Script, metaclass=(
                 continue
             if hasattr(local_unit, "unfold_merged"):
                 enabled_units.extend(local_unit.unfold_merged())
+            elif isinstance(local_unit.image, list):
+                if not local_unit.accepts_multiple_inputs():
+                    for image in local_unit.image:
+                        unit = copy(local_unit)
+                        unit.image = image["image"]
+                        unit.input_mode = InputMode.SIMPLE
+                        unit.weight = 1 / len(local_unit.image)
+                        enabled_units.append(unit)
             else:
                 enabled_units.append(copy(local_unit))
 
@@ -648,8 +658,6 @@ class Script(scripts.Script, metaclass=(
             else:
                 input_image = HWC3(np.asarray(p_input_image))
         elif image is not None:
-            while len(image['mask'].shape) < 3:
-                image['mask'] = image['mask'][..., np.newaxis]
             if isinstance(image, list):
                 # Add mask logic if later there is a processor that accepts mask
                 # on multiple inputs.
