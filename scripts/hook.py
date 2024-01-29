@@ -3,10 +3,11 @@ import hashlib
 import numpy as np
 import torch.nn as nn
 from functools import partial
-
+from typing import Optional, Any
 
 from scripts.logging import logger
 from scripts.enums import ControlModelType, AutoMachine, HiResFixOption
+from scripts.controlmodel_ipadapter import ImageEmbed
 from modules import devices, lowvram, shared, scripts
 
 cond_cast_unet = getattr(devices, 'cond_cast_unet', lambda x: x)
@@ -176,6 +177,7 @@ class ControlParams:
             soft_injection,
             cfg_injection,
             hr_option: HiResFixOption = HiResFixOption.BOTH,
+            control_context_override: Optional[Any] = None,
             **kwargs  # To avoid errors
     ):
         self.control_model = control_model
@@ -190,6 +192,7 @@ class ControlParams:
         self.global_average_pooling = global_average_pooling
         self.hr_hint_cond = hr_hint_cond
         self.hr_option = hr_option
+        self.control_context_override = control_context_override
         self.used_hint_cond = None
         self.used_hint_cond_latent = None
         self.used_hint_inpaint_hijack = None
@@ -211,7 +214,7 @@ class ControlParams:
         self.used_hint_cond = None
         self.used_hint_cond_latent = None
         self.used_hint_inpaint_hijack = None
-    
+
     def disabled_by_hr_option(self, is_in_high_res_fix: bool) -> bool:
         if self.hr_option == HiResFixOption.BOTH:
             control_disabled = False
@@ -555,14 +558,17 @@ class UnetHook(nn.Module):
                 if param.guidance_stopped or param.disabled_by_hr_option(self.is_in_high_res_fix):
                     continue
 
-                if param.control_model_type not in [ControlModelType.ControlNet, ControlModelType.T2I_Adapter]:
+                if not (
+                    param.control_model_type.is_controlnet() or
+                    param.control_model_type == ControlModelType.T2I_Adapter
+                ):
                     continue
 
                 # inpaint model workaround
                 x_in = x
                 control_model = param.control_model.control_model
 
-                if param.control_model_type == ControlModelType.ControlNet:
+                if param.control_model_type.is_controlnet():
                     if x.shape[1] != control_model.input_blocks[0][0].in_channels and x.shape[1] == 9:
                         # inpaint_model: 4 data + 4 downscaled image + 1 mask
                         x_in = x[:, :4, ...]
@@ -571,6 +577,11 @@ class UnetHook(nn.Module):
                 assert param.used_hint_cond is not None, f"Controlnet is enabled but no input image is given"
 
                 hint = param.used_hint_cond
+                if param.control_model_type == ControlModelType.InstantID:
+                    assert isinstance(param.control_context_override, ImageEmbed)
+                    controlnet_context = param.control_context_override.eval(cond_mark).to(x.device, dtype=x.dtype)
+                else:
+                    controlnet_context = context
 
                 # ControlNet inpaint protocol
                 if hint.shape[1] == 4:
@@ -579,7 +590,13 @@ class UnetHook(nn.Module):
                     m = (m > 0.5).float()
                     hint = c * (1 - m) - m
 
-                control = param.control_model(x=x_in, hint=hint, timesteps=timesteps, context=context, y=y)
+                control = param.control_model(
+                    x=x_in,
+                    hint=hint,
+                    timesteps=timesteps,
+                    context=controlnet_context,
+                    y=y
+                )
 
                 if is_sdxl:
                     control_scales = [param.weight] * 10
@@ -606,10 +623,10 @@ class UnetHook(nn.Module):
                     # important! use the soft weights with high-res fix can significantly reduce artifacts.
                     if param.control_model_type == ControlModelType.T2I_Adapter:
                         control_scales = [param.weight * x for x in (0.25, 0.62, 0.825, 1.0)]
-                    elif param.control_model_type == ControlModelType.ControlNet:
+                    elif param.control_model_type.is_controlnet():
                         control_scales = [param.weight * (0.825 ** float(12 - i)) for i in range(13)]
 
-                if is_sdxl and param.control_model_type == ControlModelType.ControlNet:
+                if is_sdxl and param.control_model_type.is_controlnet():
                     control_scales = control_scales[:10]
 
                 if param.advanced_weighting is not None:
@@ -624,7 +641,7 @@ class UnetHook(nn.Module):
 
                 for idx, item in enumerate(control):
                     target = None
-                    if param.control_model_type == ControlModelType.ControlNet:
+                    if param.control_model_type.is_controlnet():
                         target = total_controlnet_embedding
                     if param.control_model_type == ControlModelType.T2I_Adapter:
                         target = total_t2i_adapter_embedding
@@ -644,7 +661,7 @@ class UnetHook(nn.Module):
             for param in outer.control_params:
                 if not isinstance(param.used_hint_cond, torch.Tensor):
                     continue
-                if param.used_hint_cond.shape[1] != 4:
+                if param.used_hint_cond.ndim < 2 or param.used_hint_cond.shape[1] != 4:
                     continue
                 if x.shape[1] != 9:
                     continue

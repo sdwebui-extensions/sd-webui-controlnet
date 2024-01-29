@@ -77,6 +77,8 @@ cn_preprocessor_modules = {
     "ip-adapter_clip_sdxl": functools.partial(clip, config='clip_g'),
     "ip-adapter_face_id": g_insight_face_model.run_model,
     "ip-adapter_face_id_plus": face_id_plus,
+    "instant_id_face_keypoints": functools.partial(g_insight_face_instant_id_model.run_model_instant_id, return_keypoints=True),
+    "instant_id_face_embedding": functools.partial(g_insight_face_instant_id_model.run_model_instant_id, return_keypoints=False),
     "color": color,
     "pidinet": pidinet,
     "pidinet_safe": pidinet_safe,
@@ -119,6 +121,7 @@ cn_preprocessor_modules = {
     "sd_openpose_with_face": sd_openpose_with_face,
     "densepose": functools.partial(densepose, cmap="viridis"),
     "densepose_parula": functools.partial(densepose, cmap="parula"),
+    "te_hed":te_hed,
 }
 
 cn_preprocessor_unloadable = {
@@ -159,6 +162,7 @@ cn_preprocessor_unloadable = {
     "densepose": unload_densepose,
     "densepose_parula": unload_densepose,
     "depth_hand_refiner": g_hand_refiner_model.unload,
+    "te_hed":unload_te_hed,
 }
 
 preprocessor_aliases = {
@@ -181,7 +185,8 @@ preprocessor_aliases = {
     "inpaint": "inpaint_global_harmonious",
     "anime_face_segment": "seg_anime_face",
     "densepose": "densepose (pruple bg & purple torso)",
-    "densepose_parula": "densepose_parula (black bg & blue torso)"
+    "densepose_parula": "densepose_parula (black bg & blue torso)",
+    "te_hed": "softedge_teed",
 }
 
 ui_preprocessor_keys = ['none', preprocessor_aliases['invert']]
