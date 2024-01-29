@@ -1177,18 +1177,33 @@ class Script(scripts.Script, metaclass=(
         return getattr(p, 'refiner_checkpoint', None) is not None
 
     def process(self, p, *args, **kwargs):
+        batch_option_uint_separate="All ControlNet units for all images in a batch"
+        batch_option_style_align=False
+        for _arg in args:
+            if isinstance(_arg, str):
+                batch_option_uint_separate = _arg
+            elif isinstance(_arg, bool):
+                batch_option_style_align = _arg
+
         if not Script.process_has_sdxl_refiner(p):
-            self.controlnet_hack(p, args[-2], args[-1])
+            self.controlnet_hack(p, batch_option_uint_separate, batch_option_style_align)
         return
 
     def before_process_batch(self, p, *args, **kwargs):
+        batch_option_uint_separate="All ControlNet units for all images in a batch"
+        batch_option_style_align=False
+        for _arg in args:
+            if isinstance(_arg, str):
+                batch_option_uint_separate = _arg
+            elif isinstance(_arg, bool):
+                batch_option_style_align = _arg
         if self.noise_modifier is not None:
             p.rng = HackedImageRNG(rng=p.rng,
                                    noise_modifier=self.noise_modifier,
                                    sd_model=p.sd_model)
         self.noise_modifier = None
         if Script.process_has_sdxl_refiner(p):
-            self.controlnet_hack(p, args[-2], args[-1])
+            self.controlnet_hack(p, batch_option_uint_separate, batch_option_style_align)
         return
 
     def postprocess_batch(self, p, *args, **kwargs):
