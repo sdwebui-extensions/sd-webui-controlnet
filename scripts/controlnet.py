@@ -326,6 +326,7 @@ class Script(scripts.Script, metaclass=(
         controls = ()
         max_models = shared.opts.data.get("control_net_unit_count", 3)
         if not shared.cmd_opts.just_ui:
+            shared.opts.data.update({'control_net_unit_count':10})
             max_models = 10
         elem_id_tabname = ("img2img" if is_img2img else "txt2img") + "_controlnet"
         with gr.Group(elem_id=elem_id_tabname):
