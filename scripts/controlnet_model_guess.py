@@ -8,7 +8,9 @@ from modules import devices
 from scripts.adapter import PlugableAdapter, Adapter, StyleAdapter, Adapter_light
 from scripts.controlnet_lllite import PlugableControlLLLite
 from scripts.cldm import PlugableControlModel
-from scripts.controlmodel_ipadapter import PlugableIPAdapter
+from scripts.controlnet_sparsectrl import PlugableSparseCtrlModel
+from scripts.ipadapter.ipadapter_model import IPAdapterModel
+from scripts.ipadapter.plugable_ipadapter import PlugableIPAdapter
 from scripts.logging import logger
 from scripts.controlnet_diffusers import convert_from_diffuser_state_dict
 from scripts.controlnet_lora import controlnet_lora_hijack, force_load_state_dict
@@ -132,6 +134,21 @@ def build_model_by_guess(state_dict, unet, model_path: str) -> ControlModel:
         network.to(devices.dtype_unet)
         return ControlModel(network, ControlModelType.ControlLoRA)
 
+    if "down_blocks.0.motion_modules.0.temporal_transformer.norm.weight" in state_dict: # sparsectrl
+        config = copy.deepcopy(controlnet_default_config)
+        if "input_hint_block.0.weight" in state_dict: # rgb
+            config['use_simplified_condition_embedding'] = True
+            config['conditioning_channels'] = 5
+        else: # scribble
+            config['use_simplified_condition_embedding'] = False
+            config['conditioning_channels'] = 4
+
+        config['use_fp16'] = devices.dtype_unet == torch.float16
+
+        network = PlugableSparseCtrlModel(config, state_dict)
+        network.to(devices.dtype_unet)
+        return ControlModel(network, ControlModelType.SparseCtrl)
+
     if "controlnet_cond_embedding.conv_in.weight" in state_dict:  # diffusers
         state_dict = convert_from_diffuser_state_dict(state_dict)
 
@@ -253,8 +270,7 @@ def build_model_by_guess(state_dict, unet, model_path: str) -> ControlModel:
         return ControlModel(network, ControlModelType.T2I_Adapter)
 
     if 'ip_adapter' in state_dict:
-        network = PlugableIPAdapter(state_dict, model_path)
-        network.to('cpu')
+        network = PlugableIPAdapter(IPAdapterModel.load(state_dict, model_path))
         return ControlModel(network, ControlModelType.IPAdapter)
 
     if any('lllite' in k for k in state_dict.keys()):

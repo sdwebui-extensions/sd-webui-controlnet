@@ -10,6 +10,7 @@ import logging
 
 from typing import Any, Callable, Dict, List
 from modules.safe import unsafe_torch_load
+from modules.modelloader import load_file_from_url  # noqa: F401
 from scripts.logging import logger
 
 
@@ -178,3 +179,28 @@ def align_dim_latent(x: int) -> int:
     Stable diffusion 1:8 ratio for latent/pixel, i.e.,
     1 latent unit == 8 pixel unit."""
     return (x // 8) * 8
+
+
+def pad64(x):
+    return int(np.ceil(float(x) / 64.0) * 64 - x)
+
+
+def safer_memory(x):
+    # Fix many MAC/AMD problems
+    return np.ascontiguousarray(x.copy()).copy()
+
+
+def resize_image_with_pad(img, resolution):
+    H_raw, W_raw, _ = img.shape
+    k = float(resolution) / float(min(H_raw, W_raw))
+    interpolation = cv2.INTER_CUBIC if k > 1 else cv2.INTER_AREA
+    H_target = int(np.round(float(H_raw) * k))
+    W_target = int(np.round(float(W_raw) * k))
+    img = cv2.resize(img, (W_target, H_target), interpolation=interpolation)
+    H_pad, W_pad = pad64(H_target), pad64(W_target)
+    img_padded = np.pad(img, [[0, H_pad], [0, W_pad], [0, 0]], mode='edge')
+
+    def remove_pad(x):
+        return safer_memory(x[:H_target, :W_target])
+
+    return safer_memory(img_padded), remove_pad

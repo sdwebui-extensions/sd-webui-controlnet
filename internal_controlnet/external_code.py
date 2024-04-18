@@ -1,13 +1,18 @@
+import base64
+import io
 from dataclasses import dataclass
 from enum import Enum
 from copy import copy
 from typing import List, Any, Optional, Union, Tuple, Dict
+import torch
 import numpy as np
+
 from modules import scripts, processing, shared
+from modules.safe import unsafe_torch_load
 from scripts import global_state
-from scripts.processor import preprocessor_sliders_config, model_free_preprocessors
 from scripts.logging import logger
 from scripts.enums import HiResFixOption
+from scripts.supported_preprocessor import Preprocessor, PreprocessorParameter
 
 from modules.api import api
 
@@ -54,10 +59,10 @@ class InputMode(Enum):
     BATCH = "batch"
 
 resize_mode_aliases = {
-    'Inner Fit (Scale to Fit)': 'Crop and Resize',
-    'Outer Fit (Shrink to Fit)': 'Resize and Fill',
-    'Scale to Fit (Inner Fit)': 'Crop and Resize',
-    'Envelope (Outer Fit)': 'Resize and Fill',
+    "Inner Fit (Scale to Fit)": "Crop and Resize",
+    "Outer Fit (Shrink to Fit)": "Resize and Fill",
+    "Scale to Fit (Inner Fit)": "Crop and Resize",
+    "Envelope (Outer Fit)": "Resize and Fill",
 }
 
 
@@ -70,7 +75,9 @@ def resize_mode_from_value(value: Union[str, int, ResizeMode]) -> ResizeMode:
             return ResizeMode.RESIZE
 
         if value >= len(ResizeMode):
-            logger.warning(f'Unrecognized ResizeMode int value {value}. Fall back to RESIZE.')
+            logger.warning(
+                f"Unrecognized ResizeMode int value {value}. Fall back to RESIZE."
+            )
             return ResizeMode.RESIZE
 
         return [e for e in ResizeMode][value]
@@ -98,10 +105,10 @@ def visualize_inpaint_mask(img):
 
 
 def pixel_perfect_resolution(
-        image: np.ndarray,
-        target_H: int,
-        target_W: int,
-        resize_mode: ResizeMode,
+    image: np.ndarray,
+    target_H: int,
+    target_W: int,
+    resize_mode: ResizeMode,
 ) -> int:
     """
     Calculate the estimated resolution for resizing an image while preserving aspect ratio.
@@ -137,7 +144,7 @@ def pixel_perfect_resolution(
     else:
         estimation = max(k0, k1) * float(min(raw_H, raw_W))
 
-    logger.debug(f"Pixel Perfect Computation:")
+    logger.debug("Pixel Perfect Computation:")
     logger.debug(f"resize_mode = {resize_mode}")
     logger.debug(f"raw_H = {raw_H}")
     logger.debug(f"raw_W = {raw_W}")
@@ -157,6 +164,7 @@ class ControlNetUnit:
     """
     Represents an entire ControlNet processing unit.
     """
+
     enabled: bool = True
     module: str = "none"
     model: str = "None"
@@ -196,6 +204,12 @@ class ControlNetUnit:
     # even advanced_weighting is set.
     advanced_weighting: Optional[List[float]] = None
 
+    # The tensor input for ipadapter. When this field is set in the API,
+    # the base64string will be interpret by torch.load to reconstruct ipadapter
+    # preprocessor output.
+    # Currently the option is only accessible in API calls.
+    ipadapter_input: Optional[List[Any]] = None
+
     def __eq__(self, other):
         if not isinstance(other, ControlNetUnit):
             return False
@@ -213,6 +227,58 @@ class ControlNetUnit:
             "instant_id_face_embedding",
         )
 
+    @staticmethod
+    def infotext_excluded_fields() -> List[str]:
+        return [
+            "image",
+            "enabled",
+            # API-only fields.
+            "advanced_weighting",
+            "ipadapter_input",
+            # End of API-only fields.
+            # Note: "inpaint_crop_image" is img2img inpaint only flag, which does not
+            # provide much information when restoring the unit.
+            "inpaint_crop_input_image",
+        ]
+
+    @property
+    def is_animate_diff_batch(self) -> bool:
+        return getattr(self, "animatediff_batch", False)
+
+    @property
+    def uses_clip(self) -> bool:
+        """Whether this unit uses clip preprocessor."""
+        return any(
+            (
+                ("ip-adapter" in self.module and "face_id" not in self.module),
+                self.module
+                in ("clip_vision", "revision_clipvision", "revision_ignore_prompt"),
+            )
+        )
+
+    @property
+    def is_inpaint(self) -> bool:
+        return "inpaint" in self.module
+
+    def bound_check_params(self) -> None:
+        """
+        Checks and corrects negative parameters in ControlNetUnit 'unit' in place.
+        Parameters 'processor_res', 'threshold_a', 'threshold_b' are reset to
+        their default values if negative.
+        """
+        preprocessor = Preprocessor.get_preprocessor(self.module)
+        for unit_param, param in zip(
+            ("processor_res", "threshold_a", "threshold_b"),
+            ("slider_resolution", "slider_1", "slider_2"),
+        ):
+            value = getattr(self, unit_param)
+            cfg: PreprocessorParameter = getattr(preprocessor, param)
+            if value < 0:
+                setattr(self, unit_param, cfg.value)
+                logger.info(
+                    f"[{self.module}.{unit_param}] Invalid value({value}), using default value {cfg.value}."
+                )
+
 
 def to_base64_nparray(encoding: str):
     """
@@ -225,7 +291,9 @@ def to_base64_nparray(encoding: str):
     return np.array(pil_img).astype('uint8')
 
 
-def get_all_units_in_processing(p: processing.StableDiffusionProcessing) -> List[ControlNetUnit]:
+def get_all_units_in_processing(
+    p: processing.StableDiffusionProcessing,
+) -> List[ControlNetUnit]:
     """
     Fetch ControlNet processing units from a StableDiffusionProcessing.
     """
@@ -233,7 +301,9 @@ def get_all_units_in_processing(p: processing.StableDiffusionProcessing) -> List
     return get_all_units(p.scripts, p.script_args)
 
 
-def get_all_units(script_runner: scripts.ScriptRunner, script_args: List[Any]) -> List[ControlNetUnit]:
+def get_all_units(
+    script_runner: scripts.ScriptRunner, script_args: List[Any]
+) -> List[ControlNetUnit]:
     """
     Fetch ControlNet processing units from an existing script runner.
     Use this function to fetch units from the list of all scripts arguments.
@@ -241,7 +311,7 @@ def get_all_units(script_runner: scripts.ScriptRunner, script_args: List[Any]) -
 
     cn_script = find_cn_script(script_runner)
     if cn_script:
-        return get_all_units_from(script_args[cn_script.args_from:cn_script.args_to])
+        return get_all_units_from(script_args[cn_script.args_from : cn_script.args_to])
 
     return []
 
@@ -253,23 +323,20 @@ def get_all_units_from(script_args: List[Any]) -> List[ControlNetUnit]:
     """
 
     def is_stale_unit(script_arg: Any) -> bool:
-        """ Returns whether the script_arg is potentially an stale version of
+        """Returns whether the script_arg is potentially an stale version of
         ControlNetUnit created before module reload."""
-        return (
-                'ControlNetUnit' in type(script_arg).__name__ and
-                not isinstance(script_arg, ControlNetUnit)
+        return "ControlNetUnit" in type(script_arg).__name__ and not isinstance(
+            script_arg, ControlNetUnit
         )
 
     def is_controlnet_unit(script_arg: Any) -> bool:
-        """ Returns whether the script_arg is ControlNetUnit or anything that
-        can be treated like ControlNetUnit. """
-        return (
-                isinstance(script_arg, (ControlNetUnit, dict)) or
-                (
-                        hasattr(script_arg, '__dict__') and
-                        set(vars(ControlNetUnit()).keys()).issubset(
-                            set(vars(script_arg).keys()))
-                )
+        """Returns whether the script_arg is ControlNetUnit or anything that
+        can be treated like ControlNetUnit."""
+        return isinstance(script_arg, (ControlNetUnit, dict)) or (
+            hasattr(script_arg, "__dict__")
+            and set(vars(ControlNetUnit()).keys()).issubset(
+                set(vars(script_arg).keys())
+            )
         )
 
     all_units = [
@@ -280,7 +347,8 @@ def get_all_units_from(script_args: List[Any]) -> List[ControlNetUnit]:
     if not all_units:
         logger.warning(
             "No ControlNetUnit detected in args. It is very likely that you are having an extension conflict."
-            f"Here are args received by ControlNet: {script_args}.")
+            f"Here are args received by ControlNet: {script_args}."
+        )
     if any(is_stale_unit(script_arg) for script_arg in script_args):
         logger.debug(
             "Stale version of ControlNetUnit detected. The ControlNetUnit received"
@@ -292,7 +360,9 @@ def get_all_units_from(script_args: List[Any]) -> List[ControlNetUnit]:
     return all_units
 
 
-def get_single_unit_from(script_args: List[Any], index: int = 0) -> Optional[ControlNetUnit]:
+def get_single_unit_from(
+    script_args: List[Any], index: int = 0
+) -> Optional[ControlNetUnit]:
     """
     Fetch a single ControlNet processing unit from ControlNet script arguments.
     The list must not contain script positional arguments. It must only contain processing units.
@@ -325,10 +395,10 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
     """
 
     ext_compat_keys = {
-        'guessmode': 'guess_mode',
-        'guidance': 'guidance_end',
-        'lowvram': 'low_vram',
-        'input_image': 'image'
+        "guessmode": "guess_mode",
+        "guidance": "guidance_end",
+        "lowvram": "low_vram",
+        "input_image": "image",
     }
 
     if isinstance(unit, dict):
@@ -341,17 +411,20 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
                 unit['input_mode'] = InputMode.BATCH
 
         mask = None
-        if 'mask' in unit:
-            mask = unit['mask']
-            del unit['mask']
+        if "mask" in unit:
+            mask = unit["mask"]
+            del unit["mask"]
 
-        if 'image' in unit and not isinstance(unit['image'], dict):
-            unit['image'] = {'image': unit['image'], 'mask': mask} if mask is not None else unit['image'] if unit[
-                'image'] else None
+        if "mask_image" in unit:
+            mask = unit["mask_image"]
+            del unit["mask_image"]
 
-        if 'guess_mode' in unit:
-            logger.warning('Guess Mode is removed since 1.1.136. Please use Control Mode instead.')
-        
+        if "image" in unit and not isinstance(unit["image"], dict):
+            unit["image"] = (
+                {"image": unit["image"], "mask": mask}
+                if mask is not None
+                else unit["image"] if unit["image"] else None
+            )
         input_mode = InputMode.SIMPLE
         if "input_mode" in unit:
             input_mode = unit["input_mode"]
@@ -371,7 +444,28 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
         for key in extra_attr:
             del unit[key]
 
-        unit = ControlNetUnit(**{k: v for k, v in unit.items() if k in vars(ControlNetUnit).keys()})
+        # Parse ipadapter_input
+        if "ipadapter_input" in unit:
+
+            def decode_base64(b: str) -> torch.Tensor:
+                decoded_bytes = base64.b64decode(b)
+                return unsafe_torch_load(io.BytesIO(decoded_bytes))
+
+            if isinstance(unit["ipadapter_input"], str):
+                unit["ipadapter_input"] = [unit["ipadapter_input"]]
+
+            unit["ipadapter_input"] = [
+                decode_base64(b) for b in unit["ipadapter_input"]
+            ]
+
+        if "guess_mode" in unit:
+            logger.warning(
+                "Guess Mode is removed since 1.1.136. Please use Control Mode instead."
+            )
+
+        unit = ControlNetUnit(
+            **{k: v for k, v in unit.items() if k in vars(ControlNetUnit).keys()}
+        )
         unit.input_mode = input_mode
         unit.batch_images = batch_images
         unit.output_dir = output_dir
@@ -384,9 +478,9 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
 
 
 def update_cn_script_in_processing(
-        p: processing.StableDiffusionProcessing,
-        cn_units: List[ControlNetUnit],
-        **_kwargs,  # for backwards compatibility
+    p: processing.StableDiffusionProcessing,
+    cn_units: List[ControlNetUnit],
+    **_kwargs,  # for backwards compatibility
 ):
     """
     Update the arguments of the ControlNet script in `p.script_args` in place, reading from `cn_units`.
@@ -424,13 +518,17 @@ def update_cn_script(
 
     # fill in remaining parameters to satisfy max models, just in case script needs it.
     max_models = shared.opts.data.get("control_net_unit_count", 3)
-    cn_units = cn_units + [ControlNetUnit(enabled=False)] * max(max_models - len(cn_units), 0)
+    cn_units = cn_units + [ControlNetUnit(enabled=False)] * max(
+        max_models - len(cn_units), 0
+    )
 
     cn_script_args_diff = 0
     for script in script_runner.alwayson_scripts:
         if script is cn_script:
-            cn_script_args_diff = len(cn_units) - (cn_script.args_to - cn_script.args_from)
-            updated_script_args[script.args_from:script.args_to] = cn_units
+            cn_script_args_diff = len(cn_units) - (
+                cn_script.args_to - cn_script.args_from
+            )
+            updated_script_args[script.args_from : script.args_to] = cn_units
             script.args_to = script.args_from + len(cn_units)
         else:
             script.args_from += cn_script_args_diff
@@ -440,10 +538,10 @@ def update_cn_script(
 
 
 def update_cn_script_in_place(
-        script_runner: scripts.ScriptRunner,
-        script_args: List[Any],
-        cn_units: List[ControlNetUnit],
-        **_kwargs,  # for backwards compatibility
+    script_runner: scripts.ScriptRunner,
+    script_args: List[Any],
+    cn_units: List[ControlNetUnit],
+    **_kwargs,  # for backwards compatibility
 ):
     """
     @Deprecated(Raises assertion error if script_args passed in is Tuple)
@@ -463,13 +561,17 @@ def update_cn_script_in_place(
 
     # fill in remaining parameters to satisfy max models, just in case script needs it.
     max_models = shared.opts.data.get("control_net_unit_count", 3)
-    cn_units = cn_units + [ControlNetUnit(enabled=False)] * max(max_models - len(cn_units), 0)
+    cn_units = cn_units + [ControlNetUnit(enabled=False)] * max(
+        max_models - len(cn_units), 0
+    )
 
     cn_script_args_diff = 0
     for script in script_runner.alwayson_scripts:
         if script is cn_script:
-            cn_script_args_diff = len(cn_units) - (cn_script.args_to - cn_script.args_from)
-            script_args[script.args_from:script.args_to] = cn_units
+            cn_script_args_diff = len(cn_units) - (
+                cn_script.args_to - cn_script.args_from
+            )
+            script_args[script.args_from : script.args_to] = cn_units
             script.args_to = script.args_from + len(cn_units)
         else:
             script.args_from += cn_script_args_diff
@@ -499,13 +601,10 @@ def get_modules(alias_names: bool = False) -> List[str]:
     Keyword arguments:
     alias_names -- Whether to get the ui alias names instead of internal keys
     """
-
-    modules = list(global_state.cn_preprocessor_modules.keys())
-
-    if alias_names:
-        modules = [global_state.preprocessor_aliases.get(module, module) for module in modules]
-
-    return modules
+    return [
+        (p.label if alias_names else p.name)
+        for p in Preprocessor.get_sorted_preprocessors()
+    ]
 
 
 def get_modules_detail(alias_names: bool = False) -> Dict[str, Any]:
@@ -522,17 +621,22 @@ def get_modules_detail(alias_names: bool = False) -> Dict[str, Any]:
     _module_list_alias = get_modules(True)
 
     _output_list = _module_list if not alias_names else _module_list_alias
-    for index, module in enumerate(_output_list):
-        if _module_list[index] in preprocessor_sliders_config:
-            _module_detail[module] = {
-                "model_free": module in model_free_preprocessors,
-                "sliders": preprocessor_sliders_config[_module_list[index]]
-            }
-        else:
-            _module_detail[module] = {
-                "model_free": False,
-                "sliders": []
-            }
+    for module_name in _output_list:
+        preprocessor = Preprocessor.get_preprocessor(module_name)
+        assert preprocessor is not None
+        _module_detail[module_name] = dict(
+            model_free=preprocessor.do_not_need_model,
+            sliders=[
+                s.api_json
+                for s in (
+                    preprocessor.slider_resolution,
+                    preprocessor.slider_1,
+                    preprocessor.slider_2,
+                    preprocessor.slider_3,
+                )
+                if s.visible
+            ],
+        )
 
     return _module_detail
 
@@ -555,4 +659,4 @@ def is_cn_script(script: scripts.Script) -> bool:
     Determine whether `script` is a ControlNet script.
     """
 
-    return script.title().lower() == 'controlnet'
+    return script.title().lower() == "controlnet"

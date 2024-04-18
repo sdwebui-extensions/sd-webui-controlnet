@@ -7,10 +7,9 @@ from typing import Optional, Any
 
 from scripts.logging import logger
 from scripts.enums import ControlModelType, AutoMachine, HiResFixOption
-from scripts.controlmodel_ipadapter import ImageEmbed
+from scripts.ipadapter.ipadapter_model import ImageEmbed
+from scripts.controlnet_sparsectrl import SparseCtrl
 from modules import devices, lowvram, shared, scripts
-
-cond_cast_unet = getattr(devices, 'cond_cast_unet', lambda x: x)
 
 from ldm.modules.diffusionmodules.util import timestep_embedding, make_beta_schedule
 from ldm.modules.diffusionmodules.openaimodel import UNetModel
@@ -23,10 +22,11 @@ from modules.processing import StableDiffusionProcessing
 
 try:
     from sgm.modules.attention import BasicTransformerBlock as BasicTransformerBlockSGM
-except:
+except ImportError:
     print('Warning: ControlNet failed to load SGM - will use LDM instead.')
     BasicTransformerBlockSGM = BasicTransformerBlock
 
+cond_cast_unet = getattr(devices, 'cond_cast_unet', lambda x: x)
 
 POSITIVE_MARK_TOKEN = 1024
 NEGATIVE_MARK_TOKEN = - POSITIVE_MARK_TOKEN
@@ -397,17 +397,25 @@ class UnetHook(nn.Module):
             vae_output = vae_cache.get(x)
             if vae_output is None:
                 with devices.autocast():
-                    vae_output = p.sd_model.encode_first_stage(x)
-                    vae_output = p.sd_model.get_first_stage_encoding(vae_output)
+                    vae_output = torch.stack([
+                        p.sd_model.get_first_stage_encoding(
+                            p.sd_model.encode_first_stage(torch.unsqueeze(img, 0).to(device=devices.device))
+                        )[0].to(img.device)
+                        for img in x
+                    ])
                     if torch.all(torch.isnan(vae_output)).item():
-                        logger.info(f'ControlNet find Nans in the VAE encoding. \n '
-                                    f'Now ControlNet will automatically retry.\n '
-                                    f'To always start with 32-bit VAE, use --no-half-vae commandline flag.')
+                        logger.info('ControlNet find Nans in the VAE encoding. \n '
+                                    'Now ControlNet will automatically retry.\n '
+                                    'To always start with 32-bit VAE, use --no-half-vae commandline flag.')
                         devices.dtype_vae = torch.float32
                         x = x.to(devices.dtype_vae)
                         p.sd_model.first_stage_model.to(devices.dtype_vae)
-                        vae_output = p.sd_model.encode_first_stage(x)
-                        vae_output = p.sd_model.get_first_stage_encoding(vae_output)
+                        vae_output = torch.stack([
+                            p.sd_model.get_first_stage_encoding(
+                                p.sd_model.encode_first_stage(torch.unsqueeze(img, 0).to(device=devices.device))
+                            )[0].to(img.device)
+                            for img in x
+                        ])
                 vae_cache.set(x, vae_output)
                 logger.info(f'ControlNet used {str(devices.dtype_vae)} VAE to encode {vae_output.shape}.')
             latent = vae_output
@@ -420,6 +428,9 @@ class UnetHook(nn.Module):
             raise ValueError('ControlNet failed to use VAE. Please try to add `--no-half-vae`, `--no-half` and remove `--precision full` in launch cmd.')
 
     def guidance_schedule_handler(self, x):
+        if not self.control_params:
+            return
+
         for param in self.control_params:
             current_sampling_percent = (x.sampling_step / x.total_sampling_steps)
             param.guidance_stopped = current_sampling_percent < param.start_guidance_percent or current_sampling_percent > param.stop_guidance_percent
@@ -574,7 +585,7 @@ class UnetHook(nn.Module):
                         x_in = x[:, :4, ...]
                         require_inpaint_hijack = True
 
-                assert param.used_hint_cond is not None, f"Controlnet is enabled but no input image is given"
+                assert param.used_hint_cond is not None, "Controlnet is enabled but no input image is given"
 
                 hint = param.used_hint_cond
                 if param.control_model_type == ControlModelType.InstantID:
@@ -584,7 +595,7 @@ class UnetHook(nn.Module):
                     controlnet_context = context
 
                 # ControlNet inpaint protocol
-                if hint.shape[1] == 4:
+                if hint.shape[1] == 4 and not isinstance(control_model, SparseCtrl):
                     c = hint[:, 0:3, :, :]
                     m = hint[:, 3:4, :, :]
                     m = (m > 0.5).float()
@@ -688,8 +699,9 @@ class UnetHook(nn.Module):
                 try:
                     # Trigger the register_forward_pre_hook
                     outer.sd_ldm.model()
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug("register_forward_pre_hook")
+                    logger.debug(e)
 
             # Clear attention and AdaIn cache
             for module in outer.attn_module_list:

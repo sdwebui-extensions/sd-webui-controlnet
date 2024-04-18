@@ -2,23 +2,17 @@ import json
 import gradio as gr
 import functools
 from copy import copy
-from typing import List, Optional, Union, Callable, Dict, Tuple, Literal
+from typing import List, Optional, Union, Dict, Tuple, Literal
 from dataclasses import dataclass
 import numpy as np
 
+from scripts.supported_preprocessor import Preprocessor
 from scripts.utils import svg_preprocess, read_image
 from scripts import (
     global_state,
     external_code,
 )
-from scripts.processor import (
-    preprocessor_sliders_config,
-    no_control_mode_preprocessors,
-    flag_preprocessor_resolution,
-    model_free_preprocessors,
-    preprocessor_filters,
-    HWC3,
-)
+from annotator.util import HWC3
 from scripts.logging import logger
 from scripts.controlnet_ui.openpose_editor import OpenposeEditor
 from scripts.controlnet_ui.preset import ControlNetPresetUI
@@ -35,31 +29,31 @@ import requests
 class A1111Context:
     """Contains all components from A1111."""
 
-    img2img_batch_input_dir: Optional[gr.components.IOComponent] = None
-    img2img_batch_output_dir: Optional[gr.components.IOComponent] = None
-    txt2img_submit_button: Optional[gr.components.IOComponent] = None
-    img2img_submit_button: Optional[gr.components.IOComponent] = None
+    img2img_batch_input_dir: Optional[gr.components.Component] = None
+    img2img_batch_output_dir: Optional[gr.components.Component] = None
+    txt2img_submit_button: Optional[gr.components.Component] = None
+    img2img_submit_button: Optional[gr.components.Component] = None
 
     # Slider controls from A1111 WebUI.
-    txt2img_w_slider: Optional[gr.components.IOComponent] = None
-    txt2img_h_slider: Optional[gr.components.IOComponent] = None
-    img2img_w_slider: Optional[gr.components.IOComponent] = None
-    img2img_h_slider: Optional[gr.components.IOComponent] = None
+    txt2img_w_slider: Optional[gr.components.Component] = None
+    txt2img_h_slider: Optional[gr.components.Component] = None
+    img2img_w_slider: Optional[gr.components.Component] = None
+    img2img_h_slider: Optional[gr.components.Component] = None
 
-    img2img_img2img_tab: Optional[gr.components.IOComponent] = None
-    img2img_img2img_sketch_tab: Optional[gr.components.IOComponent] = None
-    img2img_batch_tab: Optional[gr.components.IOComponent] = None
-    img2img_inpaint_tab: Optional[gr.components.IOComponent] = None
-    img2img_inpaint_sketch_tab: Optional[gr.components.IOComponent] = None
-    img2img_inpaint_upload_tab: Optional[gr.components.IOComponent] = None
+    img2img_img2img_tab: Optional[gr.components.Component] = None
+    img2img_img2img_sketch_tab: Optional[gr.components.Component] = None
+    img2img_batch_tab: Optional[gr.components.Component] = None
+    img2img_inpaint_tab: Optional[gr.components.Component] = None
+    img2img_inpaint_sketch_tab: Optional[gr.components.Component] = None
+    img2img_inpaint_upload_tab: Optional[gr.components.Component] = None
 
-    img2img_inpaint_area: Optional[gr.components.IOComponent] = None
+    img2img_inpaint_area: Optional[gr.components.Component] = None
     # txt2img_enable_hr is only available for A1111 > 1.7.0.
-    txt2img_enable_hr: Optional[gr.components.IOComponent] = None
-    setting_sd_model_checkpoint: Optional[gr.components.IOComponent] = None
+    txt2img_enable_hr: Optional[gr.components.Component] = None
+    setting_sd_model_checkpoint: Optional[gr.components.Component] = None
 
     @property
-    def img2img_inpaint_tabs(self) -> Tuple[gr.components.IOComponent]:
+    def img2img_inpaint_tabs(self) -> Tuple[gr.components.Component]:
         return (
             self.img2img_inpaint_tab,
             self.img2img_inpaint_sketch_tab,
@@ -67,7 +61,7 @@ class A1111Context:
         )
 
     @property
-    def img2img_non_inpaint_tabs(self) -> List[gr.components.IOComponent]:
+    def img2img_non_inpaint_tabs(self) -> List[gr.components.Component]:
         return (
             self.img2img_img2img_tab,
             self.img2img_img2img_sketch_tab,
@@ -95,7 +89,7 @@ class A1111Context:
             if name not in optional_components.values()
         )
 
-    def set_component(self, component: gr.components.IOComponent):
+    def set_component(self, component: gr.components.Component):
         id_mapping = {
             "img2img_batch_input_dir": "img2img_batch_input_dir",
             "img2img_batch_output_dir": "img2img_batch_output_dir",
@@ -229,7 +223,6 @@ class ControlNetUiGroup(object):
         self,
         is_img2img: bool,
         default_unit: external_code.ControlNetUnit,
-        preprocessors: List[Callable],
         photopea: Optional[Photopea],
     ):
         # Whether callbacks have been registered.
@@ -239,7 +232,6 @@ class ControlNetUiGroup(object):
 
         self.is_img2img = is_img2img
         self.default_unit = default_unit
-        self.preprocessors = preprocessors
         self.photopea = photopea
         self.webcam_enabled = False
         self.webcam_mirrored = False
@@ -302,12 +294,9 @@ class ControlNetUiGroup(object):
         self.batch_image_dir_state = None
         self.output_dir_state = None
 
-        # Internal states for UI state pasting.
-        self.prevent_next_n_module_update = 0
-        self.prevent_next_n_slider_value_update = 0
-
         # API-only fields
         self.advanced_weighting = gr.State(None)
+        self.ipadapter_input = gr.State(None)
 
         ControlNetUiGroup.all_ui_groups.append(self)
 
@@ -527,8 +516,8 @@ class ControlNetUiGroup(object):
 
         with gr.Row(elem_classes=["controlnet_control_type", "controlnet_row"]):
             self.type_filter = gr.Radio(
-                list(preprocessor_filters.keys()),
-                label=f"Control Type",
+                Preprocessor.get_all_preprocessor_tags(),
+                label="Control Type",
                 value="All",
                 elem_id=f"{elem_id_tabname}_{tabname}_controlnet_type_filter_radio",
                 elem_classes="controlnet_control_type_filter_group",
@@ -536,8 +525,8 @@ class ControlNetUiGroup(object):
 
         with gr.Row(elem_classes=["controlnet_preprocessor_model", "controlnet_row"]):
             self.module = gr.Dropdown(
-                global_state.ui_preprocessor_keys,
-                label=f"Preprocessor",
+                [p.label for p in Preprocessor.get_sorted_preprocessors()],
+                label="Preprocessor",
                 value=self.default_unit.module,
                 elem_id=f"{elem_id_tabname}_{tabname}_controlnet_preprocessor_dropdown",
             )
@@ -550,7 +539,7 @@ class ControlNetUiGroup(object):
             )
             self.model = gr.Dropdown(
                 list(global_state.cn_models.keys()),
-                label=f"Model",
+                label="Model",
                 value=self.default_unit.model,
                 elem_id=f"{elem_id_tabname}_{tabname}_controlnet_model_dropdown",
             )
@@ -562,7 +551,7 @@ class ControlNetUiGroup(object):
 
         with gr.Row(elem_classes=["controlnet_weight_steps", "controlnet_row"]):
             self.weight = gr.Slider(
-                label=f"Control Weight",
+                label="Control Weight",
                 value=self.default_unit.weight,
                 minimum=0.0,
                 maximum=2.0,
@@ -799,82 +788,21 @@ class ControlNetUiGroup(object):
 
     def register_build_sliders(self):
         def build_sliders(module: str, pp: bool):
-            logger.debug(
-                f"Prevent update slider value: {self.prevent_next_n_slider_value_update}"
-            )
-            logger.debug(f"Build slider for module: {module} - {pp}")
+            preprocessor = Preprocessor.get_preprocessor(module)
+            slider_resolution_kwargs = preprocessor.slider_resolution.gradio_update_kwargs.copy()
 
-            # Clear old slider values so that they do not cause confusion in
-            # infotext.
-            clear_slider_update = gr.update(
-                visible=False,
-                interactive=True,
-                minimum=-1,
-                maximum=-1,
-                value=-1,
-            )
+            if pp:
+                slider_resolution_kwargs['visible'] = False
 
-            grs = []
-            module = global_state.get_module_basename(module)
-            if module not in preprocessor_sliders_config:
-                default_res_slider_config = dict(
-                    label=flag_preprocessor_resolution,
-                    minimum=64,
-                    maximum=2048,
-                    step=1,
-                )
-                if self.prevent_next_n_slider_value_update == 0:
-                    default_res_slider_config["value"] = 512
-
-                grs += [
-                    gr.update(
-                        **default_res_slider_config,
-                        visible=not pp,
-                        interactive=True,
-                    ),
-                    copy(clear_slider_update),
-                    copy(clear_slider_update),
-                    gr.update(visible=True),
-                ]
-            else:
-                for slider_config in preprocessor_sliders_config[module]:
-                    if isinstance(slider_config, dict):
-                        visible = True
-                        if slider_config["name"] == flag_preprocessor_resolution:
-                            visible = not pp
-                        slider_update = gr.update(
-                            label=slider_config["name"],
-                            minimum=slider_config["min"],
-                            maximum=slider_config["max"],
-                            step=slider_config["step"]
-                            if "step" in slider_config
-                            else 1,
-                            visible=visible,
-                            interactive=True,
-                        )
-                        if self.prevent_next_n_slider_value_update == 0:
-                            slider_update["value"] = slider_config["value"]
-
-                        grs.append(slider_update)
-
-                    else:
-                        grs.append(copy(clear_slider_update))
-                while len(grs) < 3:
-                    grs.append(copy(clear_slider_update))
-                grs.append(gr.update(visible=True))
-            if module in model_free_preprocessors:
-                grs += [
-                    gr.update(visible=False, value="None"),
-                    gr.update(visible=False),
-                ]
-            else:
-                grs += [gr.update(visible=True), gr.update(visible=True)]
-
-            self.prevent_next_n_slider_value_update = max(
-                0, self.prevent_next_n_slider_value_update - 1
-            )
-
-            grs += [gr.update(visible=module not in no_control_mode_preprocessors)]
+            grs = [
+                gr.update(**slider_resolution_kwargs),
+                gr.update(**preprocessor.slider_1.gradio_update_kwargs.copy()),
+                gr.update(**preprocessor.slider_2.gradio_update_kwargs.copy()),
+                gr.update(visible=True),
+                gr.update(visible=not preprocessor.do_not_need_model),
+                gr.update(visible=not preprocessor.do_not_need_model),
+                gr.update(visible=preprocessor.show_control_mode),
+            ]
 
             return grs
 
@@ -899,7 +827,6 @@ class ControlNetUiGroup(object):
         )
 
         def filter_selected(k: str):
-            logger.debug(f"Prevent update {self.prevent_next_n_module_update}")
             logger.debug(f"Switch to control type {k}")
             (
                 filtered_preprocessor_list,
@@ -907,22 +834,14 @@ class ControlNetUiGroup(object):
                 default_option,
                 default_model,
             ) = global_state.select_control_type(k, global_state.get_sd_version())
-
-            if self.prevent_next_n_module_update > 0:
-                self.prevent_next_n_module_update -= 1
-                return [
-                    gr.Dropdown.update(choices=filtered_preprocessor_list),
-                    gr.Dropdown.update(choices=filtered_model_list),
-                ]
-            else:
-                return [
-                    gr.Dropdown.update(
-                        value=default_option, choices=filtered_preprocessor_list
-                    ),
-                    gr.Dropdown.update(
-                        value=default_model, choices=filtered_model_list
-                    ),
-                ]
+            return [
+                gr.Dropdown.update(
+                    value=default_option, choices=filtered_preprocessor_list
+                ),
+                gr.Dropdown.update(
+                    value=default_model, choices=filtered_model_list
+                ),
+            ]
 
         self.type_filter.change(
             fn=filter_selected,
@@ -960,7 +879,7 @@ class ControlNetUiGroup(object):
             )
 
     def register_run_annotator(self):
-        def run_annotator(image, module, pres, pthr_a, pthr_b, t2i_w, t2i_h, pp, rm):
+        def run_annotator(image, module, pres, pthr_a, pthr_b, t2i_w, t2i_h, pp, rm, model: str):
             if image is None:
                 return (
                     gr.update(value=None, visible=True),
@@ -982,8 +901,7 @@ class ControlNetUiGroup(object):
             ):
                 img = HWC3(image["mask"][:, :, 0])
 
-            module = global_state.get_module_basename(module)
-            preprocessor = self.preprocessors[module]
+            preprocessor = Preprocessor.get_preprocessor(module)
 
             if pp:
                 pres = external_code.pixel_perfect_resolution(
@@ -1049,23 +967,25 @@ class ControlNetUiGroup(object):
             # effect.
             # TODO: Maybe we should let `preprocessor` return a Dict to alleviate this issue?
             # This requires changing all callsites though.
-            result, is_image = preprocessor(
+            result = preprocessor.cached_call(
                 img,
-                res=pres,
-                thr_a=pthr_a,
-                thr_b=pthr_b,
+                resolution=pres,
+                slider_1=pthr_a,
+                slider_2=pthr_b,
                 low_vram=(
                     ("clip" in module or module == "ip-adapter_face_id_plus")
                     and shared.opts.data.get("controlnet_clip_detector_on_cpu", False)
                 ),
-                json_pose_callback=json_acceptor.accept
-                if is_openpose(module)
-                else None,
+                json_pose_callback=(
+                    json_acceptor.accept
+                    if is_openpose(module)
+                    else None
+                ),
+                model=model,
             )
 
-            if not is_image:
+            if not preprocessor.returns_image:
                 result = img
-                is_image = True
 
             result = external_code.visualize_inpaint_mask(result)
             return (
@@ -1093,6 +1013,7 @@ class ControlNetUiGroup(object):
                 else ControlNetUiGroup.a1111_context.txt2img_h_slider,
                 self.pixel_perfect,
                 self.resize_mode,
+                self.model,
             ],
             outputs=[
                 self.generated_image,
