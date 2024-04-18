@@ -21,8 +21,8 @@ def apply_pidinet(input_image, is_safe=False, apply_fliter=False):
         if os.path.exists(old_modelpath):
             modelpath = old_modelpath
         elif not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=modeldir)
+            from annotator.util import load_model
+            modelpath = load_model("table5_pidinet.pth", remote_model_path, modeldir)
         netNetwork = pidinet()
         ckp = load_state_dict(modelpath)
         netNetwork.load_state_dict({k.replace('module.',''):v for k, v in ckp.items()})

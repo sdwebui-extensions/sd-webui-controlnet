@@ -215,8 +215,8 @@ class MangaLineExtration:
         remote_model_path = "https://huggingface.co/lllyasviel/Annotators/resolve/main/erika.pth"
         modelpath = os.path.join(self.model_dir, "erika.pth")
         if not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model
+            modelpath = load_model("erika.pth", remote_model_path, self.model_dir)
         #norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
         net = res_skip()
         ckpt = torch.load(modelpath)

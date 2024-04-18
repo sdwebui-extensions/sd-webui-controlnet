@@ -28,8 +28,8 @@ def apply_mlsd(input_image, thr_v, thr_d):
         if os.path.exists(old_modelpath):
             modelpath = old_modelpath
         elif not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=modeldir)
+            from annotator.util import load_model
+            modelpath = load_model("mlsd_large_512_fp32.pth", remote_model_path, modeldir)
         mlsdmodel = MobileV2_MLSD_Large()
         mlsdmodel.load_state_dict(torch.load(modelpath), strict=True)
     mlsdmodel = mlsdmodel.to(devices.get_device_for("controlnet")).eval()

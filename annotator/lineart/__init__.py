@@ -103,8 +103,8 @@ class LineartDetector:
         remote_model_path = "https://huggingface.co/lllyasviel/Annotators/resolve/main/" + name
         model_path = os.path.join(self.model_dir, name)
         if not os.path.exists(model_path):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model
+            model_path = load_model(name, remote_model_path, self.model_dir)
         model = Generator(3, 1, 3)
         model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
         model.eval()

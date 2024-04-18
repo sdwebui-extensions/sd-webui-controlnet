@@ -37,8 +37,8 @@ class NormalBaeDetector:
         remote_model_path = "https://huggingface.co/lllyasviel/Annotators/resolve/main/scannet.pt"
         modelpath = os.path.join(self.model_dir, "scannet.pt")
         if not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model
+            modelpath = load_model("scannet.pt", remote_model_path, self.model_dir)
         args = types.SimpleNamespace()
         args.mode = 'client'
         args.architecture = 'BN'

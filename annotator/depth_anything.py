@@ -8,7 +8,7 @@ from torchvision.transforms import Compose
 from depth_anything.dpt import DPT_DINOv2
 from depth_anything.util.transform import Resize, NormalizeImage, PrepareForNet
 from .util import load_model
-from .annotator_path import models_path
+from .annotator_path import models_path, cache_models_path
 
 
 transform = Compose(
@@ -32,6 +32,7 @@ class DepthAnythingDetector:
     """https://github.com/LiheYoung/Depth-Anything"""
 
     model_dir = os.path.join(models_path, "depth_anything")
+    cache_model_dir = os.path.join(cache_models_path, "depth_anything")
 
     def __init__(self, device: torch.device):
         self.device = device

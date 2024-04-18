@@ -8,11 +8,6 @@ from modules import devices
 from annotator.annotator_path import models_path, cache_models_path
 from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor
 
-try:
-    from modules.modelloader import load_file_from_url
-except ImportError:
-    # backward compability for webui < 1.5.0
-    from scripts.utils import load_file_from_url
 
 config_clip_g = {
   "attention_dropout": 0.0,
@@ -109,7 +104,8 @@ class ClipVisionDetector:
             cache_file_path = os.path.join(cache_models_path, 'clip_vision', self.file_name)
             if os.path.exists(cache_file_path):
                 file_path = cache_file_path
-            load_file_from_url(url=self.download_link, model_dir=self.model_path, file_name=self.file_name)
+            from annotator.util import load_model
+            file_path = load_model(self.file_name, self.download_link, self.model_path)
         config = CLIPVisionConfig(**self.config)
 
         self.model = CLIPVisionModelWithProjection(config)

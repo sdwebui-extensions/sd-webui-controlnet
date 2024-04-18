@@ -27,8 +27,8 @@ def apply_uniformer(img):
         if os.path.exists(old_modelpath):
             modelpath = old_modelpath  
         elif not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(checkpoint_file, model_dir=modeldir)
+            from annotator.util import load_model
+            modelpath = load_model("upernet_global_small.pth", checkpoint_file, modeldir)
             
         model = init_segmentor(config_file, modelpath, device=devices.get_device_for("controlnet"))
     model = model.to(devices.get_device_for("controlnet"))

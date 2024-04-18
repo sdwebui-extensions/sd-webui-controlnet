@@ -70,8 +70,8 @@ def apply_hed(input_image, is_safe=False):
         if os.path.exists(old_modelpath):
             modelpath = old_modelpath
         elif not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=modeldir)
+            from annotator.util import load_model
+            modelpath = load_model("ControlNetHED.pth", remote_model_path, modeldir)
         netNetwork = ControlNetHED_Apache2().to(devices.get_device_for("controlnet"))
         netNetwork.load_state_dict(torch.load(modelpath, map_location='cpu'))
     netNetwork.to(devices.get_device_for("controlnet")).float().eval()

@@ -63,16 +63,16 @@ def apply_sd_openpose_with_face(oriImg):
         face_modelpath = os.path.join(modeldir, "facenet.pth")
 
         if not os.path.exists(body_modelpath):
-            from basicsr.utils.download_util import load_file_from_url
-            load_file_from_url(body_model_path, model_dir=modeldir)
+            from annotator.util import load_model
+            body_modelpath = load_model("body_pose_model.pth", body_model_path, modeldir)
 
         if not os.path.exists(hand_modelpath):
-            from basicsr.utils.download_util import load_file_from_url
-            load_file_from_url(hand_model_path, model_dir=modeldir)
+            from annotator.util import load_model
+            hand_modelpath = load_model("hand_pose_model.pth", hand_model_path, modeldir)
 
         if not os.path.exists(face_modelpath):
-            from basicsr.utils.download_util import load_file_from_url
-            load_file_from_url(face_model_path, model_dir=modeldir)
+            from annotator.util import load_model
+            face_modelpath = load_model("facenet.pth", face_model_path, modeldir)
 
         body_estimation = Body(body_modelpath)
         hand_estimation = Hand(hand_modelpath)

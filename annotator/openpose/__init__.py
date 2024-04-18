@@ -203,19 +203,16 @@ class OpenposeDetector:
         face_modelpath = os.path.join(self.model_dir, "facenet.pth")
 
         if not os.path.exists(body_modelpath):
-            from scripts.utils import load_file_from_url
-
-            load_file_from_url(body_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model as load_model_path
+            body_modelpath = load_model_path("body_pose_model.pth", body_model_path, self.model_dir)
 
         if not os.path.exists(hand_modelpath):
-            from scripts.utils import load_file_from_url
-
-            load_file_from_url(hand_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model as load_model_path
+            hand_modelpath = load_model_path("hand_pose_model.pth", hand_model_path, self.model_dir)
 
         if not os.path.exists(face_modelpath):
-            from scripts.utils import load_file_from_url
-
-            load_file_from_url(face_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model as load_model_path
+            face_modelpath = load_model_path("facenet.pth", face_model_path, self.model_dir)
 
         self.body_estimation = Body(body_modelpath)
         self.hand_estimation = Hand(hand_modelpath)
@@ -227,9 +224,9 @@ class OpenposeDetector:
         def load_model(filename: str, remote_url: str):
             local_path = os.path.join(self.model_dir, filename)
             if not os.path.exists(local_path):
-                from scripts.utils import load_file_from_url
+                from annotator.util import load_model as load_model_path
+                local_path = load_model_path(filename, remote_url, self.model_dir)
 
-                load_file_from_url(remote_url, model_dir=self.model_dir)
             return local_path
 
         onnx_det = load_model("yolox_l.onnx", remote_onnx_det)
@@ -249,9 +246,9 @@ class OpenposeDetector:
             """
             local_path = os.path.join(self.model_dir, filename)
             if not os.path.exists(local_path):
-                from scripts.utils import load_file_from_url
+                from annotator.util import load_model as load_model_path
+                local_path = load_model_path(filename, remote_url, self.model_dir)
 
-                load_file_from_url(remote_url, model_dir=self.model_dir)
             return local_path
 
         onnx_det = load_model("yolox_l.onnx", remote_onnx_det)

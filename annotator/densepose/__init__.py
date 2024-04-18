@@ -24,8 +24,8 @@ def apply_densepose(input_image, cmap="viridis"):
     if torchscript_model is None:
         model_path = os.path.join(model_dir, "densepose_r50_fpn_dl.torchscript")
         if not os.path.exists(model_path):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_torchscript_path, model_dir=model_dir)
+            from annotator.util import load_model
+            model_path = load_model("densepose_r50_fpn_dl.torchscript", remote_torchscript_path, model_dir)
         torchscript_model = torch.jit.load(model_path, map_location="cpu").to(devices.get_device_for("controlnet")).eval()
     H, W  = input_image.shape[:2]
 

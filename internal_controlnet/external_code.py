@@ -446,17 +446,19 @@ def to_processing_unit(unit: Union[Dict[str, Any], ControlNetUnit]) -> ControlNe
 
         # Parse ipadapter_input
         if "ipadapter_input" in unit:
+            if unit["ipadapter_input"] is None:
+                unit.pop('ipadapter_input')
+            else:
+                def decode_base64(b: str) -> torch.Tensor:
+                    decoded_bytes = base64.b64decode(b)
+                    return unsafe_torch_load(io.BytesIO(decoded_bytes))
 
-            def decode_base64(b: str) -> torch.Tensor:
-                decoded_bytes = base64.b64decode(b)
-                return unsafe_torch_load(io.BytesIO(decoded_bytes))
+                if isinstance(unit["ipadapter_input"], str):
+                    unit["ipadapter_input"] = [unit["ipadapter_input"]]
 
-            if isinstance(unit["ipadapter_input"], str):
-                unit["ipadapter_input"] = [unit["ipadapter_input"]]
-
-            unit["ipadapter_input"] = [
-                decode_base64(b) for b in unit["ipadapter_input"]
-            ]
+                unit["ipadapter_input"] = [
+                    decode_base64(b) for b in unit["ipadapter_input"]
+                ]
 
         if "guess_mode" in unit:
             logger.warning(

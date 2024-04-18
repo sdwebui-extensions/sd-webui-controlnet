@@ -27,8 +27,8 @@ class OneformerDetector:
         remote_model_path = "https://huggingface.co/lllyasviel/Annotators/resolve/main/" + self.config["name"]
         modelpath = os.path.join(self.model_dir, self.config["name"])
         if not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model
+            modelpath = load_model(self.config["name"], remote_model_path, self.model_dir)
         config = os.path.join(os.path.dirname(__file__), self.config["config"])
         model, self.metadata = make_detectron2_model(config, modelpath)
         self.model = model

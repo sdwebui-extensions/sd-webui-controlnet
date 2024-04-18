@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import os
 from annotator.annotator_path import models_path
+from annotator.util import load_model as load_model_path
 
 from torchvision.transforms import Compose
 
@@ -102,8 +103,7 @@ def load_model(model_type):
         if os.path.exists(old_model_path):
             model_path = old_model_path
         elif not os.path.exists(model_path):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=base_model_path)
+            model_path = load_model_path(model_path.split('/')[-1], remote_model_path, os.path.dirname(model_path))
         
         model = DPTDepthModel(
             path=model_path,

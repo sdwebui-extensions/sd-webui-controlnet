@@ -21,8 +21,8 @@ class ZoeDetector:
         remote_model_path = "https://huggingface.co/lllyasviel/Annotators/resolve/main/ZoeD_M12_N.pt"
         modelpath = os.path.join(self.model_dir, "ZoeD_M12_N.pt")
         if not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model as load_model_path
+            modelpath = load_model_path("ZoeD_M12_N.pt", remote_model_path, self.model_dir)
         conf = get_config("zoedepth", "infer")
         model = ZoeDepth.build_from_config(conf)
         model.load_state_dict(torch.load(modelpath, map_location=model.device)['model'])

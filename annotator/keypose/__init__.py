@@ -147,8 +147,8 @@ def find_download_model(checkpoint, remote_path):
     if os.path.exists(old_modelpath):
         modelpath = old_modelpath
     elif not os.path.exists(modelpath):
-        from scripts.utils import load_file_from_url
-        load_file_from_url(remote_path, model_dir=modeldir)
+        from annotator.util import load_model
+        modelpath = load_model(checkpoint, remote_path, modeldir)
         
     return modelpath
 

@@ -23,8 +23,9 @@ class NormalDsineDetector:
         remote_model_path = "https://huggingface.co/bdsqlsz/qinglong_controlnet-lllite/resolve/main/Annotators/dsine.pt"
         modelpath = os.path.join(self.model_dir, "dsine.pt")
         if not os.path.exists(modelpath):
-            from scripts.utils import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=self.model_dir)
+            from annotator.util import load_model
+            modelpath = load_model("dsine.pt", remote_model_path, self.model_dir)
+
         model = DSINE()
         model.pixel_coords = model.pixel_coords.to(self.device)
         model = utils.load_checkpoint(modelpath, model)
