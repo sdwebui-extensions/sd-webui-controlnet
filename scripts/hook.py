@@ -18,6 +18,7 @@ from ldm.models.diffusion.ddpm import extract_into_tensor
 
 from modules.prompt_parser import MulticondLearnedConditioning, ComposableScheduledPromptConditioning, ScheduledPromptConditioning
 from modules.processing import StableDiffusionProcessing
+import os
 
 
 try:
@@ -776,6 +777,9 @@ class UnetHook(nn.Module):
 
             use_blade = hasattr(shared.cmd_opts, "blade") and shared.cmd_opts.blade and self.input_blocks == self.blade_input_blocks
 
+            orig_fa_all_look = os.environ["FA_RUN_ALL_LOOK"]
+            os.environ["FA_RUN_ALL_LOOK"] = "1"
+
             # U-Net Encoder
             hs = []
             with th.no_grad():
@@ -836,6 +840,8 @@ class UnetHook(nn.Module):
                 h = h.permute(0, 3, 1, 2) # to nchw, no contiguous is fine
             
             h = self.out(h)
+
+            os.environ["FA_RUN_ALL_LOOK"] = orig_fa_all_look
 
             # Post-processing for color fix
             for param in outer.control_params:
