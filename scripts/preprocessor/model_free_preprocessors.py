@@ -12,6 +12,7 @@ class PreprocessorNone(Preprocessor):
     def __init__(self):
         super().__init__(name="none")
         self.sorting_priority = 10
+        self.tags = ["InstructP2P"]
 
     def __call__(
         self,
@@ -71,7 +72,6 @@ class PreprocessorInvert(Preprocessor):
             "Canny",
             "Lineart",
             "Scribble",
-            "Sketch",
             "MLSD",
         ]
         self.slider_resolution = PreprocessorParameter(visible=False)
@@ -93,9 +93,9 @@ class PreprocessorBlurGaussian(Preprocessor):
     def __init__(self):
         super().__init__(name="blur_gaussian")
         self.slider_1 = PreprocessorParameter(
-            label="Sigma", minimum=64, maximum=2048, value=512
+            label="Sigma", minimum=0.01, maximum=64.0, value=9.0
         )
-        self.tags = ["Tile", "Blur"]
+        self.tags = ["Tile"]
 
     def __call__(
         self,
@@ -121,7 +121,6 @@ class PreprocessorScribbleXdog(Preprocessor):
         )
         self.tags = [
             "Scribble",
-            "Sketch",
             "SparseCtrl",
         ]
 
@@ -152,7 +151,7 @@ class PreprocessorShuffle(Preprocessor):
         # Fix res to 512.
         self.slider_resolution = PreprocessorParameter(value=512, visible=False)
 
-    def cached_call(self, *args, **kwargs):
+    def _cached_call(self, *args, **kwargs):
         """No cache for shuffle, as each call depends on different numpy seed."""
         return self(*args, **kwargs)
 

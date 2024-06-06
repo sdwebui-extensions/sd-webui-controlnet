@@ -492,43 +492,6 @@ def unload_lineart_anime_denoise():
         model_manga_line.unload_model()
 
 
-model_lama = None
-
-
-def lama_inpaint(img, res=512, **kwargs):
-    H, W, C = img.shape
-    raw_color = img[:, :, 0:3].copy()
-    raw_mask = img[:, :, 3:4].copy()
-
-    res = 256  # Always use 256 since lama is trained on 256
-
-    img_res, remove_pad = resize_image_with_pad(img, res, skip_hwc3=True)
-
-    global model_lama
-    if model_lama is None:
-        from annotator.lama import LamaInpainting
-        model_lama = LamaInpainting()
-
-    # applied auto inversion
-    prd_color = model_lama(img_res)
-    prd_color = remove_pad(prd_color)
-    prd_color = cv2.resize(prd_color, (W, H))
-
-    alpha = raw_mask.astype(np.float32) / 255.0
-    fin_color = prd_color.astype(np.float32) * alpha + raw_color.astype(np.float32) * (1 - alpha)
-    fin_color = fin_color.clip(0, 255).astype(np.uint8)
-
-    result = np.concatenate([fin_color, raw_mask], axis=2)
-
-    return result, True
-
-
-def unload_lama_inpaint():
-    global model_lama
-    if model_lama is not None:
-        model_lama.unload_model()
-
-
 model_zoe_depth = None
 
 
@@ -785,21 +748,6 @@ def densepose(img, res=512, cmap="viridis", **kwargs):
 def unload_densepose():
     from annotator.densepose import unload_model
     unload_model()
-
-model_te_hed = None
-
-def te_hed(img, res=512, thr_a=2, **kwargs):
-    img, remove_pad = resize_image_with_pad(img, res)
-    global model_te_hed
-    if model_te_hed is None:
-        from annotator.teed import TEEDDector
-        model_te_hed = TEEDDector()
-    result = model_te_hed(img, safe_steps=int(thr_a))
-    return remove_pad(result), True
-
-def unload_te_hed():
-    if model_te_hed is not None:
-        model_te_hed.unload_model()
 
 class InsightFaceModel:
     def __init__(self, face_analysis_model_name: str = "buffalo_l"):

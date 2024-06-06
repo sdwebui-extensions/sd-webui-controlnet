@@ -29,7 +29,7 @@ legacy_preprocessors = {
     #     "slider_3": None,
     #     "priority": 20,
     #     "tags": [
-    #         "Canny", "Lineart", "Scribble", "Sketch", "MLSD",
+    #         "Canny", "Lineart", "Scribble", "MLSD",
     #     ]
     # },
     "animal_openpose": {
@@ -76,7 +76,7 @@ legacy_preprocessors = {
     #     "slider_3": None,
     #     "priority": 0,
     #     "tags": [
-    #         "Tile", "Blur",
+    #         "Tile",
     #     ]
     # },
     # "canny": {
@@ -313,54 +313,54 @@ legacy_preprocessors = {
             "OpenPose"
         ]
     },
-    "inpaint": {
-        "label": "inpaint_global_harmonious",
-        "call_function": identity,
-        "unload_function": None,
-        "managed_model": None,
-        "model_free": False,
-        "no_control_mode": False,
-        "resolution": None,
-        "slider_1": None,
-        "slider_2": None,
-        "slider_3": None,
-        "priority": 0,
-        "tags": [
-            "Inpaint"
-        ]
-    },
-    "inpaint_only": {
-        "label": "inpaint_only",
-        "call_function": identity,
-        "unload_function": None,
-        "managed_model": None,
-        "model_free": False,
-        "no_control_mode": False,
-        "resolution": None,
-        "slider_1": None,
-        "slider_2": None,
-        "slider_3": None,
-        "priority": 100,
-        "tags": [
-            "Inpaint"
-        ]
-    },
-    "inpaint_only+lama": {
-        "label": "inpaint_only+lama",
-        "call_function": lama_inpaint,
-        "unload_function": unload_lama_inpaint,
-        "managed_model": "model_lama",
-        "model_free": False,
-        "no_control_mode": False,
-        "resolution": None,
-        "slider_1": None,
-        "slider_2": None,
-        "slider_3": None,
-        "priority": 0,
-        "tags": [
-            "Inpaint"
-        ]
-    },
+    # "inpaint": {
+    #     "label": "inpaint_global_harmonious",
+    #     "call_function": identity,
+    #     "unload_function": None,
+    #     "managed_model": None,
+    #     "model_free": False,
+    #     "no_control_mode": False,
+    #     "resolution": None,
+    #     "slider_1": None,
+    #     "slider_2": None,
+    #     "slider_3": None,
+    #     "priority": 0,
+    #     "tags": [
+    #         "Inpaint"
+    #     ]
+    # },
+    # "inpaint_only": {
+    #     "label": "inpaint_only",
+    #     "call_function": identity,
+    #     "unload_function": None,
+    #     "managed_model": None,
+    #     "model_free": False,
+    #     "no_control_mode": False,
+    #     "resolution": None,
+    #     "slider_1": None,
+    #     "slider_2": None,
+    #     "slider_3": None,
+    #     "priority": 100,
+    #     "tags": [
+    #         "Inpaint"
+    #     ]
+    # },
+    # "inpaint_only+lama": {
+    #     "label": "inpaint_only+lama",
+    #     "call_function": lama_inpaint,
+    #     "unload_function": unload_lama_inpaint,
+    #     "managed_model": "model_lama",
+    #     "model_free": False,
+    #     "no_control_mode": False,
+    #     "resolution": None,
+    #     "slider_1": None,
+    #     "slider_2": None,
+    #     "slider_3": None,
+    #     "priority": 0,
+    #     "tags": [
+    #         "Inpaint"
+    #     ]
+    # },
     "instant_id_face_embedding": {
         "label": "instant_id_face_embedding",
         "call_function": functools.partial(g_insight_face_instant_id_model.run_model_instant_id, return_keypoints=False),
@@ -406,6 +406,7 @@ legacy_preprocessors = {
         "slider_2": None,
         "slider_3": None,
         "priority": 100,
+        "accepts_mask": True,  # CLIP mask
         "tags": [
             "IP-Adapter"
         ],
@@ -423,6 +424,7 @@ legacy_preprocessors = {
         "slider_2": None,
         "slider_3": None,
         "priority": 0,
+        "accepts_mask": True,  # CLIP mask
         "tags": [
             "IP-Adapter"
         ],
@@ -440,6 +442,7 @@ legacy_preprocessors = {
         "slider_2": None,
         "slider_3": None,
         "priority": 0,
+        "accepts_mask": True,  # CLIP mask
         "tags": [
             "IP-Adapter"
         ],
@@ -929,7 +932,7 @@ legacy_preprocessors = {
         "slider_3": None,
         "priority": 0,
         "tags": [
-            "Scribble", "Sketch", "SparseCtrl",
+            "Scribble", "SparseCtrl",
         ]
     },
     "pidinet_scribble": {
@@ -945,7 +948,7 @@ legacy_preprocessors = {
         "slider_3": None,
         "priority": 100,
         "tags": [
-            "Scribble", "Sketch", "SparseCtrl",
+            "Scribble", "SparseCtrl",
         ]
     },
     # "scribble_xdog": {
@@ -971,7 +974,7 @@ legacy_preprocessors = {
     #     "slider_3": None,
     #     "priority": 0,
     #     "tags": [
-    #         "Scribble", "Sketch",
+    #         "Scribble",
     #     ]
     # },
     "anime_face_segment": {
@@ -1138,33 +1141,33 @@ legacy_preprocessors = {
             "SoftEdge"
         ]
     },
-    "te_hed": {
-        "label": "softedge_teed",
-        "call_function": te_hed,
-        "unload_function": unload_te_hed,
-        "managed_model": "model_te_hed",
-        "model_free": False,
-        "no_control_mode": False,
-        "resolution": {
-            "label": "Resolution",
-            "value": 512,
-            "minimum": 64,
-            "maximum": 2048
-        },
-        "slider_1": {
-            "label": "Safe Steps",
-            "minimum": 0,
-            "maximum": 10,
-            "value": 2,
-            "step": 1
-        },
-        "slider_2": None,
-        "slider_3": None,
-        "priority": 0,
-        "tags": [
-            "SoftEdge"
-        ]
-    },
+    # "te_hed": {
+    #     "label": "softedge_teed",
+    #     "call_function": te_hed,
+    #     "unload_function": unload_te_hed,
+    #     "managed_model": "model_te_hed",
+    #     "model_free": False,
+    #     "no_control_mode": False,
+    #     "resolution": {
+    #         "label": "Resolution",
+    #         "value": 512,
+    #         "minimum": 64,
+    #         "maximum": 2048
+    #     },
+    #     "slider_1": {
+    #         "label": "Safe Steps",
+    #         "minimum": 0,
+    #         "maximum": 10,
+    #         "value": 2,
+    #         "step": 1
+    #     },
+    #     "slider_2": None,
+    #     "slider_3": None,
+    #     "priority": 0,
+    #     "tags": [
+    #         "SoftEdge"
+    #     ]
+    # },
     "color": {
         "label": "t2ia_color_grid",
         "call_function": color,
@@ -1262,7 +1265,7 @@ legacy_preprocessors = {
         "slider_3": None,
         "priority": 0,
         "tags": [
-            "Tile", "Blur",
+            "Tile",
         ]
     },
     "tile_colorfix+sharp": {
@@ -1290,7 +1293,7 @@ legacy_preprocessors = {
         "slider_3": None,
         "priority": 0,
         "tags": [
-            "Tile", "Blur",
+            "Tile",
         ]
     },
     "tile_resample": {
@@ -1312,7 +1315,7 @@ legacy_preprocessors = {
         "slider_3": None,
         "priority": 100,
         "tags": [
-            "Tile", "Blur",
+            "Tile",
         ]
     }
 }
