@@ -12,6 +12,7 @@ from scripts.enums import (
     BatchOption,  # noqa: F401
     ControlMode,  # noqa: F401
 )
+from enum import Enum
 from scripts.supported_preprocessor import (
     Preprocessor,
     PreprocessorParameter,  # noqa: F401
@@ -29,6 +30,7 @@ def get_api_version() -> int:
 class InputMode(Enum):
     SIMPLE = "simple"
     BATCH = "batch"
+    MERGE = "merge"
 
 resize_mode_aliases = {
     "Inner Fit (Scale to Fit)": "Crop and Resize",

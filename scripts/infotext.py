@@ -27,14 +27,16 @@ class Infotext(object):
                      iocomponents.
         """
         unit_prefix = Infotext.unit_prefix(unit_index)
-        for field in vars(external_code.ControlNetUnit()).keys():
+        for field in vars(ControlNetUnit()).keys():
             # Exclude image for infotext.
             if field in ["image", "input_mode", "batch_images", "output_dir"]:
                 continue
 
             # Every field in ControlNetUnit should have a cooresponding
             # IOComponent in ControlNetUiGroup.
-            io_component = getattr(uigroup, field)
+            io_component = getattr(uigroup, field, None)
+            if io_component is None:
+                continue
             component_locator = f"{unit_prefix} {field}"
             self.infotext_fields.append((io_component, component_locator))
             self.paste_field_names.append(component_locator)
